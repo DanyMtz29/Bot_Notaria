@@ -1,0 +1,10 @@
+#Variables
+*.env
+
+#Lo que el python genera
+__pycache__/
+
+#Basurilla si es que genera
+.vscode/
+.idea/
+.DS_Store
