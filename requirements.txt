@@ -2,3 +2,10 @@ selenium>=4.24.0
 python-dotenv>=1.0.1
 loguru>=0.7.2
 typer>=0.12.5
+
+#Para PDFS
+pdfminer.six
+pdfplumber
+pyMuPDF
+pillow
+pytesseract
