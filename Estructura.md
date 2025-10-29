@@ -1,29 +1,47 @@
-# ESCTRUCTURA PARA QUE EL BOT NO BATALLE
-
-Carpeta principal donde tiene todos los actos guardados. Por ejemplo:
-C:\Users\dani\Actos\
-
-Dentro de la ruta principal ya estarian los distintos actos/proyectos de la siguiente manera:
-
-/NOMBRE_DEL_ACTO
- /PARTES_INVOLUCRADAS
-  /COMPRADOR
-   /DOCUMENTOS DEL COMPRADOR
-   /ESPOSA -> Aplica dependiendo si esta casado
-  /VENDEDOR
-  /ACREEDOR
-  /ADEUDOR
-  /...*depende de las partes que apliquen en el acto*
- /DOCUMENTOS GENERALES
-  /SOLICITUD_DE_AVALUO.pdf
-  /AVALUO.pdf
-  /...
-
-Documentos del cliente que empiecen por primerApellido_primerNombre-doc, si es sociedad, nombre de la sociedad como tal
-Ejemplo:
-/JUAREZ_DANIEL <- Carpeta
- /JUAREZ_DANIEL-CURP.pdf
- /JUAREZ_DANIEL-ACTA-DE-NACIMIENTO.pdf
- /JUAREZ_DANIEL-ACTA-DE-MATRIMONIO.pdf
- /JUAREZ_DANIEL-COMP-DE-DOMICILIO.pdf
- /JUAREZ_DANIEL-CSF.pdf
+ESC. Compraventa Daniel/
+  Comprador/
+    DANIEL JUAREZ/
+      CSF_DANIEL.pdf
+      CURP_DANIEL.pdf
+      ACTA_NAC_DANIEL.pdf
+      INE_DANIEL.pdf
+      COMP_DOM.pdf
+      ACTA_MATRIMONIO.pdf
+      Esposa/
+        CSF_MARIA.pdf
+        CURP_MARIA.pdf
+        ACTA_NAC_MARIA.pdf
+        INE_MARIA.pdf
+    JUAN PEREZ/
+      CSF_DANIEL.pdf
+      CURP_DANIEL.pdf
+      ACTA_NAC_DANIEL.pdf
+      INE_DANIEL.pdf
+      COMP_DOM.pdf
+  Vendedor/
+    DESARROLLADORA/
+      CSF_SOC.pdf
+      Acta_Constitutiva.pdf
+      Poder_Representante.pdf
+      Asambleas_2023.pdf
+      Representante/
+        CSF_rep.pdf
+        CURP_rep.pdf
+        ACTA_NAC_rep.pdf
+        INE_rep.pdf
+  Inmueble/
+    Casa_lote_12/
+      Escritura_Antecedente.pdf
+      Cert_Libertad_Gravamen.pdf
+      Avaluo_Catastral.pdf
+      Aviso_Preventivo.pdf
+      Plano.pdf
+    Casa_lote_10/
+      Escritura_Antecedente.pdf
+      Cert_Libertad_Gravamen.pdf
+      Avaluo_Catastral.pdf
+      Plano.pdf
+  Contrato_principal.pdf   <-- (esto saldrá en "otros")
+  Recibo_Pago.pdf
+  Forma_ISAI.pdf
+  PAGO_ISAI.pdf

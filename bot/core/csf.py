@@ -1,138 +1,161 @@
 # bot/core/csf.py
 from __future__ import annotations
-import os
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Iterable
 from loguru import logger
 
-# ========= Lectura de PDF/Imagen =========
-def _read_pdf_text_fitz(path: str) -> str:
-    try:
-        import fitz
-    except Exception as e:
-        logger.debug("PyMuPDF no disponible: {}", e)
-        return ""
-    try:
-        parts = []
-        with fitz.open(path) as doc:
-            for p in doc:
-                parts.append(p.get_text("text") or "")
-        return "\n".join(parts)
-    except Exception as e:
-        logger.exception("PyMuPDF falló con {}: {}", path, e)
-        return ""
+# ========= EXTRACCIÓN POSICIONAL CON PyMuPDF =========
+# Requiere: pip install pymupdf
 
-def _read_pdf_text_pdfminer(path: str) -> str:
-    try:
-        from pdfminer.high_level import extract_text
-    except Exception as e:
-        logger.debug("pdfminer.six no disponible: {}", e)
-        return ""
-    try:
-        return extract_text(path) or ""
-    except Exception as e:
-        logger.exception("pdfminer.six falló con {}: {}", path, e)
-        return ""
+try:
+    import fitz  # PyMuPDF
+except Exception as e:  # pragma: no cover
+    fitz = None
+    logger.error("PyMuPDF (fitz) no está disponible: {}", e)
 
-def _read_pdf_text_pdfplumber(path: str) -> str:
-    try:
-        import pdfplumber
-    except Exception as e:
-        logger.debug("pdfplumber no disponible: {}", e)
-        return ""
-    try:
-        parts = []
-        with pdfplumber.open(path) as pdf:
-            for pg in pdf.pages:
-                parts.append(pg.extract_text() or "")
-        return "\n".join(parts)
-    except Exception as e:
-        logger.exception("pdfplumber falló con {}: {}", path, e)
-        return ""
 
-def _read_image_text(path: str) -> str:
-    try:
-        from PIL import Image
-        import pytesseract
-    except Exception as e:
-        logger.debug("OCR no disponible: {}", e)
-        return ""
-    try:
-        img = Image.open(path)
-        return pytesseract.image_to_string(img, lang="spa+eng") or ""
-    except Exception as e:
-        logger.exception("OCR falló con {}: {}", path, e)
-        return ""
+# ---------------- utilidades ----------------
+def _norm_upper(s: Optional[str]) -> Optional[str]:
+    if s is None:
+        return None
+    # colapsa espacios (incluye NBSP) y sube a MAYÚSCULAS
+    return " ".join(s.replace("\xa0", " ").split()).upper()
 
-def read_text_from_file(path: str) -> str:
-    ext = os.path.splitext(path)[1].lower()
-    if ext == ".pdf":
-        for fn in (_read_pdf_text_fitz, _read_pdf_text_pdfminer, _read_pdf_text_pdfplumber):
-            t = fn(path)
-            if t and t.strip():
-                logger.debug("Texto obtenido con {} ({} chars)", fn.__name__, len(t))
-                return t
-        logger.warning("No se obtuvo texto del PDF -> {}", path)
-        return ""
-    elif ext in {".jpg", ".jpeg", ".png", ".tif", ".tiff"}:
-        return _read_image_text(path)
-    else:
-        logger.error("Extensión no soportada: {}", ext)
-        return ""
 
-# ========= Regex =========
-RFC_RE = re.compile(r"\b([A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3})\b", re.IGNORECASE)
-IDCIF_RE = re.compile(r"(?:ID\s*[-_]?\s*CIF|IDCIF)\s*[:\-]?\s*([A-Z0-9\-]{6,30})", re.IGNORECASE)
+def _tokens_right_of(page, etiqueta: str) -> Optional[str]:
+    """
+    Busca la 'etiqueta' en la página y regresa el texto (tokens) que están
+    en la misma banda horizontal y a la DERECHA de la etiqueta.
+    """
+    rects = page.search_for(etiqueta)
+    if not rects:
+        return None
+    r = rects[0]
+    y0, y1 = r.y0 - 2, r.y1 + 2  # tolerancia vertical
+    tokens = []
+    # page.get_text("words") => [x0, y0, x1, y1, text, block_no, line_no, word_no]
+    for x0, y0w, x1, y1w, text, *_ in page.get_text("words"):
+        midy = (y0w + y1w) / 2.0
+        if y0 <= midy <= y1 and x0 >= r.x1 - 1:
+            tokens.append((x0, text))
+    if not tokens:
+        return None
+    tokens.sort(key=lambda t: t[0])
+    return " ".join(t[1] for t in tokens).strip() or None
 
-# Nombre puede venir como:
-# - “Nombre, denominación o razón social” en la cabecera (línea siguiente)
-# - Sección de datos: "Nombre(s): ....  Primer apellido: ....  Segundo apellido: ...."
-NOMBRE_HEADER_RE = re.compile(
-    r"Nombre,\s*denominación\s*o\s*razón\s*social\s*\n+([A-ZÁÉÍÓÚÑ\s]+)\n", re.IGNORECASE
-)
-NOMBRES_RE = re.compile(
-    r"Nombre\(s\)\s*:\s*([A-ZÁÉÍÓÚÑ\s]+)\s+Primer\s+apellido\s*:\s*([A-ZÁÉÍÓÚÑ\s]+)\s+Segundo\s+apellido\s*:\s*([A-ZÁÉÍÓÚÑ\s]+)",
-    re.IGNORECASE
-)
 
-def _clean_spaces(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "").strip())
+def _first_nonempty(values: Iterable[Optional[str]]) -> Optional[str]:
+    for v in values:
+        if v:
+            return v
+    return None
 
-def parse_fields(text: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """Devuelve (RFC, idCIF, NOMBRE_COMPLETO)."""
-    rfc = None
-    idcif = None
-    nombre = None
 
-    # RFC
-    rfcs = RFC_RE.findall(text or "")
-    if rfcs:
-        rfcs = [r.upper() for r in rfcs]
-        prefer = [r for r in rfcs if len(r) in (12, 13)]
-        rfc = (prefer or rfcs)[0]
-
-    # idCIF
-    m = IDCIF_RE.search(text or "")
-    if m:
-        idcif = _clean_spaces(m.group(1).upper())
-
-    # Nombre por header
-    mh = NOMBRE_HEADER_RE.search(text or "")
-    if mh:
-        nombre = _clean_spaces(mh.group(1).upper())
-    else:
-        # Nombre(s) + apellidos
-        mn = NOMBRES_RE.search(text or "")
-        if mn:
-            nombre = _clean_spaces(f"{mn.group(2)} {mn.group(3)} {mn.group(1)}").upper()
-
-    return rfc, idcif, nombre
-
-def extract_csf_fields(path: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """Lee archivo y extrae (RFC, idCIF, NOMBRE)."""
-    logger.info("Extrayendo texto de CSF: {}", path)
-    text = read_text_from_file(path)
-    if not text:
-        logger.warning("No se pudo extraer texto de la CSF ({}).", path)
+# ---------------- extracción principal ----------------
+def _extract_positional_fields(pdf_path: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Lee una CSF del SAT y extrae (RFC, idCIF, NOMBRE_COMPLETO) por posiciones.
+    - Prioriza las etiquetas: 'RFC:', 'idCIF:', 'Nombre (s):', 'Primer Apellido:', 'Segundo Apellido:'.
+    - Tolera variantes comunes con/ sin espacio y con dos puntos Unicode.
+    """
+    if fitz is None:
+        logger.error("No se puede leer {} porque PyMuPDF no está instalado.", pdf_path)
         return None, None, None
-    return parse_fields(text)
+
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as e:
+        logger.exception("No se pudo abrir PDF {}: {}", pdf_path, e)
+        return None, None, None
+
+    rfc = idcif = nombres = ap1 = ap2 = None
+
+    # Variantes de etiquetas que se ven en CSF reales
+    RFC_LABELS = ("RFC:", "RFC :")
+    IDCIF_LABELS = ("idCIF:", "idCIF :", "idCIF")  # a veces sin los dos puntos
+    NOMBRES_LABELS = ("Nombre (s):", "Nombre(s):", "Nombre(s) :", "Nombre (s) :")
+    AP1_LABELS = ("Primer Apellido:", "Primer Apellido :", "Apellido paterno:", "Apellido paterno :")
+    AP2_LABELS = ("Segundo Apellido:", "Segundo Apellido :", "Apellido materno:", "Apellido materno :")
+
+    try:
+        for page in doc:
+            # RFC
+            if not rfc:
+                for lab in RFC_LABELS:
+                    rfc = _tokens_right_of(page, lab) or rfc
+                    if rfc:
+                        break
+            # idCIF
+            if not idcif:
+                for lab in IDCIF_LABELS:
+                    idcif = _tokens_right_of(page, lab) or idcif
+                    if idcif:
+                        break
+            # Nombre(s) y Apellidos
+            if not nombres:
+                for lab in NOMBRES_LABELS:
+                    nombres = _tokens_right_of(page, lab) or nombres
+                    if nombres:
+                        break
+            if not ap1:
+                for lab in AP1_LABELS:
+                    ap1 = _tokens_right_of(page, lab) or ap1
+                    if ap1:
+                        break
+            if not ap2:
+                for lab in AP2_LABELS:
+                    ap2 = _tokens_right_of(page, lab) or ap2
+                    if ap2:
+                        break
+
+        doc.close()
+    except Exception as e:
+        logger.exception("Error leyendo tokens posicionales en {}: {}", pdf_path, e)
+        try:
+            doc.close()
+        except Exception:
+            pass
+        return None, None, None
+
+    # Normalización
+    rfc = _norm_upper(rfc)
+    idcif = _norm_upper(idcif)
+    nombres = _norm_upper(nombres)
+    ap1 = _norm_upper(ap1)
+    ap2 = _norm_upper(ap2)
+
+    # Construcción del nombre completo:
+    #   PF: "APELLIDO_PATERNO APELLIDO_MATERNO NOMBRES"
+    #   Si solo hay una parte, úsala.
+    nombre_completo = None
+    if ap1 or ap2 or nombres:
+        partes = [p for p in (nombres, ap1, ap2) if p]
+        nombre_completo = " ".join(partes) if partes else None
+
+    # Filtro anti-ruido: quita cualquier cola que empiece con etiquetas de tabla
+    if nombre_completo:
+        nombre_completo = re.sub(
+            r"\b(FECHA|ESTATUS|NOMBRE\s+COMERCIAL|DOMICILIO|C[ÓO]DIGO|REG[IÍ]MEN|RFC|CURP|LUGAR|ENTIDAD|MUNICIPIO|COLONIA|CALLE)\b.*",
+            "",
+            nombre_completo,
+            flags=re.IGNORECASE,
+        ).strip()
+        # evita que parezca RFC o que venga demasiado corto
+        if re.search(r"\d", nombre_completo) or len(nombre_completo.split()) < 2:
+            nombre_completo = None
+
+    return rfc, idcif, nombre_completo
+
+
+# =============== API PÚBLICA (lo que usa el scanner) ===============
+def extract_csf_fields(path: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Devuelve (RFC, idCIF, NOMBRE/RAZÓN SOCIAL) desde una CSF usando lectura posicional.
+    Si no se encuentra algo, retorna None en ese campo.
+    """
+    logger.info("Extrayendo CSF (posicional) desde: {}", path)
+    rfc, idcif, nombre = _extract_positional_fields(path)
+
+    # Log útil para diagnosticar
+    logger.debug("CSF extraída -> RFC={}, idCIF={}, Nombre='{}'", rfc, idcif, nombre)
+    return rfc, idcif, nombre
