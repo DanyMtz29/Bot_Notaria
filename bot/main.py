@@ -9,7 +9,10 @@ import typer
 from loguru import logger
 from dotenv import load_dotenv
 
+from bot.pages.uif_modal import UifModal
+from bot.pages.customer_detail_page import CustomerDetailPage
 from bot.pages.customers_cif_modal import CustomersCifModal
+from bot.pages.clients_row_actions import ClientsRowActions
 from bot.pages.customers_create_confirm_modal import CustomersCreateConfirmModal
 from bot.core.browser import make_driver
 from bot.pages.login_page import LoginPage
@@ -262,10 +265,27 @@ def _pipeline(headless: bool):
         logger.info(f"Buscando en Clientes ({party['tipo']}): {party['nombre_upper']}")
         found = cp.search_by_name(party["nombre_upper"], timeout=12)
         if found:
-            # ←—— EXISTE
             logger.success("Ya existe en la consola")
             first = cp.first_row_client_text() or "(sin texto en primera fila)"
             logger.info(f"Primera fila (columna Cliente): {first}")
+
+            # Abrir el detalle del cliente (lupita)
+            cp.click_first_view()
+            logger.info("ABRIO LUPITA")
+
+            # 👉 Búsqueda UIF
+            cdp = CustomerDetailPage(driver, wait)
+            cdp.click_busqueda_uif(timeout=20)
+
+            uif = UifModal(driver, wait)
+            # 1) 'Buscar de nuevo'  2) Esperar y 3) Clic en 'Descargar Comprobante' (gris)
+            uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
+            logger.info("Flujo UIF completado (buscar de nuevo + descargar comprobante).")
+            # 1) 'Buscar de nuevo'
+            # uif.click_buscar_de_nuevo(timeout=45)
+            # # 2) Espera y clic en 'Descargar Comprobante' (botón inferior)
+            # uif.click_descargar_comprobante(timeout=60)
+            logger.info("Flujo UIF completado (buscar de nuevo + descargar comprobante).")
         else:
             # ←—— NO EXISTE -> crear por IdCIF
             logger.info("No existe; creando cliente...")

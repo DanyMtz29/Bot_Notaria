@@ -8,6 +8,7 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
 )
 import time
+from loguru import logger
 
 class ClientsPage:
     def __init__(self, driver, wait):
@@ -289,3 +290,84 @@ class ClientsPage:
 
         if not loaded:
             raise RuntimeError("No se detectó el formulario de 'Crear por IdCIF' tras el clic.")
+
+     # ====== Locators útiles ======
+    def _grid_body(self):
+        # tbody de la tabla Kendo
+        return (By.CSS_SELECTOR, "table.k-table tbody")
+
+    def _first_row_view_link(self):
+        # En la PRIMERA fila, el <a> que contiene el ícono de lupa
+        return (By.XPATH,
+                "//table[contains(@class,'k-table')]//tbody//tr[1]"
+                "//a[.//i[contains(@class,'fa-search')]]")
+
+    # ====== Helper de click seguro ======
+    def _click_smart(self, el):
+        try:
+            self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
+            time.sleep(0.1)
+            el.click()
+        except Exception:
+            self.driver.execute_script("arguments[0].click();", el)
+
+    # ====== NUEVO: abrir detalle (lupita) de la primera fila ======
+    def click_first_view(self, timeout: int = 15):
+        """
+        Da clic en la lupita (botón 'ver') de la PRIMERA fila del grid.
+        Espera a que cargue la página de 'Detalle de Cliente'.
+        """
+        # Asegura que el grid esté presente
+        self.wait.until(EC.presence_of_element_located(self._grid_body()))
+
+        # 1) Intento directo a la PRIMERA fila
+        try:
+            link = self.wait.until(EC.element_to_be_clickable(self._first_row_view_link()))
+            self._click_smart(link)
+            logger.info("Click en lupita (primer resultado).")
+        except Exception:
+            # 2) Fallback: busca cualquier lupa visible en el grid y clica su <a> ancestro
+            icons = self.driver.find_elements(By.CSS_SELECTOR, "table.k-table tbody i.fas.fa-search")
+            link = None
+            for ic in icons:
+                if not ic.is_displayed():
+                    continue
+                try:
+                    link = ic.find_element(By.XPATH, "./ancestor::a[1]")
+                    self._click_smart(link)
+                    logger.info("Click en lupita (fallback por ícono).")
+                    break
+                except Exception:
+                    continue
+
+            if link is None:
+                raise RuntimeError("No se encontró la lupita para abrir el detalle del cliente.")
+
+        # 3) (Opcional) Espera corta a que cargue el detalle
+        try:
+            self.wait.until(EC.presence_of_element_located(
+                (By.XPATH, "//h2[contains(normalize-space(.),'Detalle de Cliente')]")
+            ))
+        except Exception:
+            # Si el título tarda, no lo reventamos; ya hicimos clic.
+            pass
+
+     # Primer enlace de detalle (lupita) en la tabla
+    def _first_detail_link(self):
+        # En tus capturas el botón es un <a> con href /customers/detail/####
+        return (By.XPATH, "(//a[contains(@href,'/customers/detail')])[1]")
+
+    def click_first_view(self, timeout: int = 25):
+        link = self.wait.until(EC.element_to_be_clickable(self._first_detail_link()))
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", link)
+        time.sleep(0.1)
+        href = link.get_attribute("href")
+        try:
+            link.click()
+        except Exception:
+            self.driver.execute_script("arguments[0].click();", link)
+        logger.info(f"Click en lupita -> {href}")
+
+        # Espera navegación al detalle
+        self.wait.until(EC.url_contains("/customers/detail/"))
+        logger.info("Detalle de cliente cargando…")
