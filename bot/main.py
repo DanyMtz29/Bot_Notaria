@@ -3,7 +3,7 @@ import os
 import json
 from datetime import datetime
 from urllib.parse import urlsplit
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Set
 
 import typer
 from loguru import logger
@@ -50,7 +50,6 @@ def _get(obj: Any, key: str, default=None):
     if isinstance(obj, dict):
         if key in obj:
             return obj[key]
-        # búsqueda insensible a mayúsculas
         lk = key.lower()
         for k, v in obj.items():
             if str(k).lower() == lk:
@@ -186,21 +185,113 @@ def _print_partes_console(pf_list: List[Dict[str, str]], pm_list: List[Dict[str,
     else:
         logger.info("Personas Morales (PM): [ninguna]")
 
-def _pick_one_party(pf_list: List[Dict[str, str]], pm_list: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
+def _flatten_all_parties(pf_list: List[Dict[str, str]], pm_list: List[Dict[str, str]]) -> List[Dict[str, str]]:
     """
-    Elige una sola parte para la prueba:
-      - Prioriza PF; si no hay, usa PM.
-    Regresa un dict con campos: tipo, nombre, nombre_upper, rfc, idcif, rol.
+    Junta PF y PM en una sola lista y agrega nombre_upper.
+    Evita duplicados por (tipo, nombre_upper).
     """
-    party = None
-    if pf_list:
-        party = pf_list[0]
-    elif pm_list:
-        party = pm_list[0]
-    if party:
-        party = dict(party)  # copia
-        party["nombre_upper"] = (party.get("nombre") or "").upper().strip()
-    return party
+    out: List[Dict[str, str]] = []
+    seen: Set[Tuple[str, str]] = set()
+
+    for src in (pf_list or []):
+        d = dict(src)
+        d["nombre_upper"] = (d.get("nombre") or "").upper().strip()
+        key = (d.get("tipo",""), d["nombre_upper"])
+        if d["nombre_upper"] and key not in seen:
+            seen.add(key)
+            out.append(d)
+
+    for src in (pm_list or []):
+        d = dict(src)
+        d["nombre_upper"] = (d.get("nombre") or "").upper().strip()
+        key = (d.get("tipo",""), d["nombre_upper"])
+        if d["nombre_upper"] and key not in seen:
+            seen.add(key)
+            out.append(d)
+
+    return out
+
+def _safe_pdf_name(party: Dict[str, str]) -> str:
+    base = f"{party.get('tipo','')}_{party.get('rol','')}_{party.get('nombre_upper','')}".strip("_")
+    # Limpia caracteres raros para nombre de archivo
+    cleaned = "".join(ch if ch.isalnum() or ch in (" ", "-", "_") else "_" for ch in base)
+    return cleaned.replace("  ", " ").replace(" ", "_")
+
+# =========================
+# Flujo por PARTE
+# =========================
+def _process_party(driver, wait, base: str, party: Dict[str, str]) -> None:
+    """
+    Para una parte:
+      - busca por nombre en Clientes
+      - si existe: abre detalle y saca UIF
+      - si no existe: crea por IdCIF y luego saca UIF
+    """
+    cp = ClientsPage(driver, wait)
+    cp.open_direct(base)
+    cp.assert_loaded()
+
+    logger.info(f"[{party.get('tipo')}/{party.get('rol') or '-'}] Buscando en Clientes: {party['nombre_upper']}")
+    found = cp.search_by_name(party["nombre_upper"], timeout=12)
+
+    if found:
+        logger.success("Cliente EXISTE en consola")
+        try:
+            cp.click_first_view()
+            logger.info("Detalle de cliente abierto (lupita).")
+            cdp = CustomerDetailPage(driver, wait)
+            cdp.click_busqueda_uif(timeout=20)
+
+            uif = UifModal(driver, wait)
+            # Ejecuta el flujo estándar: buscar de nuevo + descargar comprobante
+            uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
+            UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
+            logger.success("UIF descargado y renombrado.")
+        finally:
+            # Regresa a Clientes para el siguiente ciclo
+            cp.open_direct(base)
+            cp.assert_loaded()
+        return
+
+    # === NO EXISTE: crear por IdCIF ===
+    logger.info("Cliente NO existe; creando por IdCIF...")
+    cp.click_new()
+    logger.success("Formulario 'Nuevo Cliente' abierto.")
+    cp.click_crear_por_idcif()
+    logger.success("Flujo 'Crear por IdCIF' abierto.")
+
+    rfc = (party.get("rfc") or "").strip()
+    idcif = (party.get("idcif") or "").strip()
+
+    modal = CustomersCifModal(driver, wait)
+    modal.fill_and_consult(rfc, idcif)
+
+    # Crear cliente y confirmar (descomenta si deseas crear realmente)
+    try:
+        modal.click_create_customer(timeout=25)
+        confirm = CustomersCreateConfirmModal(driver, wait)
+        confirm.confirm_without_email(timeout=25)
+        logger.success("Cliente creado por IdCIF.")
+    except Exception as e:
+        logger.warning(f"No se pudo completar creación automática (quizá ya existe o faltan datos): {e}")
+
+    # Regresar a Clientes y abrir detalle del recién creado/buscado
+    cp.open_direct(base)
+    cp.assert_loaded()
+    _ = cp.search_by_name(party["nombre_upper"], timeout=10)
+    try:
+        cp.click_first_view()
+        logger.info("Detalle de cliente abierto (post-creación).")
+        cdp = CustomerDetailPage(driver, wait)
+        cdp.click_busqueda_uif(timeout=20)
+
+        uif = UifModal(driver, wait)
+        uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
+        UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
+        logger.success("UIF descargado y renombrado (post-creación).")
+    finally:
+        cp.open_direct(base)
+        cp.assert_loaded()
 
 # =========================
 # Pipeline (reutilizable)
@@ -249,67 +340,25 @@ def _pipeline(headless: bool):
             "acto_nombre": getattr(extraction, "acto_nombre", os.path.basename(target_acto)),
         }
 
-        # 5) Ir a Clientes y buscar UNA parte (en MAYÚSCULAS)
+        # 5) Ir a Clientes (una sola vez para obtener base) y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
         base = _origin_of(cur)  # p.ej. https://not84.singrafos.com
-        cp = ClientsPage(driver, wait)
-        cp.open_direct(base)
-        cp.assert_loaded()
-        logger.info("Página de Clientes abierta.")
 
-        party = _pick_one_party(acto_ctx["pf"], acto_ctx["pm"])
-        if not party:
-            logger.warning("No hay PARTES (PF/PM) para buscar en clientes.")
+        all_parties = _flatten_all_parties(acto_ctx["pf"], acto_ctx["pm"])
+        if not all_parties:
+            logger.warning("No hay PARTES (PF/PM) para buscar/crear y sacar UIF.")
             return
 
-        logger.info(f"Buscando en Clientes ({party['tipo']}): {party['nombre_upper']}")
-        found = cp.search_by_name(party["nombre_upper"], timeout=12)
-        if found:
-            logger.success("Ya existe en la consola")
-            first = cp.first_row_client_text() or "(sin texto en primera fila)"
-            logger.info(f"Primera fila (columna Cliente): {first}")
+        logger.info(f"Procesando {len(all_parties)} parte(s) del acto: {acto_ctx['acto_nombre']}")
+        for idx, party in enumerate(all_parties, start=1):
+            logger.info(f"===== PARTE {idx}/{len(all_parties)} :: {party.get('tipo')} | {party.get('rol') or '-'} | {party.get('nombre_upper')} =====")
+            try:
+                _process_party(driver, wait, base, party)
+            except Exception as e:
+                logger.exception(f"Error procesando parte [{party.get('nombre_upper')}]: {e}")
 
-            # Abrir el detalle del cliente (lupita)
-            cp.click_first_view()
-            logger.info("ABRIO LUPITA")
-
-            # 👉 Búsqueda UIF
-            cdp = CustomerDetailPage(driver, wait)
-            cdp.click_busqueda_uif(timeout=20)
-
-            uif = UifModal(driver, wait)
-            # 1) 'Buscar de nuevo'  2) Esperar y 3) Clic en 'Descargar Comprobante' (gris)
-            uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
-            logger.info("Flujo UIF completado (buscar de nuevo + descargar comprobante).")
-            # 1) 'Buscar de nuevo'
-            # uif.click_buscar_de_nuevo(timeout=45)
-            # # 2) Espera y clic en 'Descargar Comprobante' (botón inferior)
-            # uif.click_descargar_comprobante(timeout=60)
-            UifModal(driver, wait).renombrar_ultimo_pdf(party["nombre_upper"])
-        else:
-            # ←—— NO EXISTE -> crear por IdCIF
-            logger.info("No existe; creando cliente...")
-            cp.click_new()
-            logger.success("Formulario de 'Nuevo Cliente' abierto.")
-            cp.click_crear_por_idcif()
-            logger.success("Se abrió el flujo 'Crear por IdCIF'.")
-
-            rfc = (party.get("rfc") or "").strip()
-            idcif = (party.get("idcif") or "").strip()
-
-            modal = CustomersCifModal(driver, wait)
-            modal.fill_and_consult(rfc, idcif)
-
-            # NUEVO: crear cliente
-            #modal.click_create_customer(timeout=25)
-
-            #Confirmar modal
-            #confirm = CustomersCreateConfirmModal(driver, wait)
-            #confirm.confirm_without_email(timeout=25)
-            cp = ClientsPage(driver, wait)
-            cp.open_direct(base)
-            cp.assert_loaded()
-            logger.info("Página de Clientes abierta.")
+        logger.success("Todas las partes del acto han sido procesadas.")
+        # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
 
     finally:
         input("INTRODUCE: ")
