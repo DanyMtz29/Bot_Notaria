@@ -285,7 +285,7 @@ def _pipeline(headless: bool):
             # uif.click_buscar_de_nuevo(timeout=45)
             # # 2) Espera y clic en 'Descargar Comprobante' (botón inferior)
             # uif.click_descargar_comprobante(timeout=60)
-            logger.info("Flujo UIF completado (buscar de nuevo + descargar comprobante).")
+            UifModal(driver, wait).renombrar_ultimo_pdf(party["nombre_upper"])
         else:
             # ←—— NO EXISTE -> crear por IdCIF
             logger.info("No existe; creando cliente...")
@@ -310,8 +310,6 @@ def _pipeline(headless: bool):
             cp.open_direct(base)
             cp.assert_loaded()
             logger.info("Página de Clientes abierta.")
-        
-
 
     finally:
         input("INTRODUCE: ")

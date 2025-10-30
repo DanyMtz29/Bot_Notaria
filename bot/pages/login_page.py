@@ -58,4 +58,5 @@ class LoginPage(BasePage):
             self.driver.execute_script("arguments[0].click();", btn)
 
         # Sal de /login (espera a que cambie la URL o se muestre el dashboard)
+
         self.wait.until(lambda d: "login" not in d.current_url.lower())

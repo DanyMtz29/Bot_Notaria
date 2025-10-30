@@ -4,6 +4,7 @@ from loguru import logger
 from .browser import make_driver
 from ..pages.login_page import LoginPage
 
+
 def login_smoke(headless: bool = False, screenshot_path: str = "bot/logs/login_ok.png"):
     load_dotenv(dotenv_path="bot/config/.env")
 
