@@ -278,6 +278,8 @@ class ActosFinder:
     def find_escritura_antecedente(folder: str) -> str | None:
         import re
         regexes = [
+            re.compile(r"\bantecedente\b"),
+            re.compile(r"\bEsc.\s+(de\s+)?antecedente\b"),
             re.compile(r"\bescritura\s+(de\s+)?antecedente\b"),
             re.compile(r"\bescritura\s+antecedente\b"),
             re.compile(r"\bantecedente\s+escritura\b"),
@@ -366,7 +368,9 @@ class ActosFinder:
                 if ext.lower() not in DOC_EXTS:
                     continue
                 if not any([
-                    ActosFinder._match_name(name, regexes=[re.compile(r"\bescritura")]),
+                    ActosFinder._match_name(name, regexes=[re.compile(r"\bescritura", re.IGNORECASE)]),#Para ignorar mayusculas
+                    ActosFinder._match_name(name, regexes=[re.compile(r"\besc\.")]),
+                    ActosFinder._match_name(name, regexes=[re.compile(r"\bantecedente")]),
                     ActosFinder._match_name(name, regexes=[re.compile(r"\blibertad")]),
                     ActosFinder._match_name(name, regexes=[re.compile(r"\bavaluo")]),
                     ActosFinder._match_name(name, regexes=[re.compile(r"\baviso\s+preventivo")]),

@@ -4,6 +4,7 @@ from typing import List, Dict, Optional, Tuple
 from loguru import logger
 
 from bot.core.files import ActosFinder
+from bot.core.acto_detector import ActoResolver
 from bot.models.acto_models import (
     ActoExtraction, Persona, PersonaFisica, Sociedad, Inmueble, DocumentoPaths
 )
@@ -41,7 +42,7 @@ def _first_or_none(*vals):
     return None
 
 KNOWN_ROLES = {
-    "Comprador", "Vendedor", "Apoderado", "Acreedor",
+    "Comprador","Compareciente", "Vendedor", "Apoderado", "Acreedor",
     "Banco", "Acreditado", "Deudor", "Donante", "Donatario",
     "Fideicomisario", "Fideicomitente", "Fiduciario",
     "Mutante", "Mutuario", "Poderdante", "Apoderado",
@@ -50,6 +51,7 @@ KNOWN_ROLES = {
     "Socios", "Accionistas", "Administrador", "Comisario",
     "Presidente", "Secretario", "Tesorero", "Vocales",
     "Comprador/Acreditado", "Vendedor terreno", "Vendedor construccion",
+    "Hij@", "Madre", "Padre"
 }
 
 ACTO_ROLE_MAP: Dict[str, set] = {
@@ -278,16 +280,25 @@ def _force_names_from_csf(extraction: ActoExtraction) -> None:
 
 # ---------------- MAIN ----------------
 def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoExtraction:
-    acto_nombre = acto_nombre or os.path.basename(acto_dir)
-    acto_type, allowed_roles = _detect_acto_type(acto_nombre)
-    logger.debug("Tipo de acto: {} (roles permitidos: {})", acto_type, ", ".join(sorted(allowed_roles)))
+    """
+    Escanea una carpeta de acto y devuelve ActoExtraction con:
+      - acto_nombre (canónico)
+      - cliente_principal (match PARTES o fallback carpeta entre 1er y 2o guion)
+      - escritura (int si la carpeta empieza con número, sino None)
+    """
+    carpeta = acto_nombre or os.path.basename(acto_dir)
 
-    out = ActoExtraction(acto_nombre=acto_nombre)
+    # Routing por roles (tu lógica existente)
+    acto_type, allowed_roles = _detect_acto_type(carpeta)
+    logger.debug("Tipo de acto (routing): {} (roles permitidos: {})", acto_type, ", ".join(sorted(allowed_roles)))
 
+    out = ActoExtraction(acto_nombre=carpeta)
+
+    # Top-level
     top_dirs = [d for d in _list_dirs(acto_dir) if not _is_ignored_dir(d)]
     top_files = _list_files(acto_dir)
 
-    # Partes
+    # Partes PF/PM
     for d in top_dirs:
         if d in INMUEBLE_DIR_NAMES:
             continue
@@ -307,7 +318,34 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
     # Otros
     out.otros = sorted(os.path.join(acto_dir, f) for f in top_files)
 
-    # **Paso clave**: forzar nombres desde CSF
+    # Normaliza nombres desde CSF (tu rutina)
     _force_names_from_csf(out)
+
+    # Prepara partes planas para el matcher
+    partes_para_match = []
+    for pf in out.partes_pf:
+        if pf.persona and pf.persona.nombre:
+            partes_para_match.append({"rol": pf.rol, "nombre": pf.persona.nombre})
+        if pf.esposa_o_esposo and pf.esposa_o_esposo.nombre:
+            partes_para_match.append({"rol": "CONYUGE", "nombre": pf.esposa_o_esposo.nombre})
+
+    for pm in out.partes_pm:
+        if pm.nombre:
+            partes_para_match.append({"rol": pm.rol, "nombre": pm.nombre})
+        if pm.representante and pm.representante.nombre:
+            partes_para_match.append({"rol": "REPRESENTANTE", "nombre": pm.representante.nombre})
+
+    # Resolver acto canónico + cliente + escritura (soporta -, –, — y 2do guion)
+    resolver = ActoResolver()
+    det = resolver.resolve(folder_name=carpeta, partes=partes_para_match)
+
+    out.acto_nombre       = det.get("acto_canonico") or carpeta
+    out.cliente_principal = det.get("cliente_principal")
+    out.cliente_fuente    = det.get("cliente_fuente")
+    out.escritura         = det.get("escritura")  # <== NUEVO
+
+    logger.debug("Acto canónico: {}", out.acto_nombre)
+    logger.debug("Cliente principal: {} (fuente: {})", out.cliente_principal, out.cliente_fuente)
+    logger.debug("Escritura: {}", out.escritura)
 
     return out
