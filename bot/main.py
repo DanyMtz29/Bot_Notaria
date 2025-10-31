@@ -335,6 +335,24 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     #Apartado de documentos
     docs = ProjectsDocumentsPage(driver, wait)
     docs.open_documents_tab()
+    #docs.set_faltante_by_description("Aviso preventivo", marcar=True)
+    #docs.set_faltante_by_description("Escritura Antecedente", marcar=True)
+
+    #Seleccionar botones
+    #docs.click_subir_documentos()
+    #docs.click_importar_documentos()
+    #docs.subir_documentos([
+    #    r"C:\Users\mdani\OneDrive\Desktop\Actos_Ejemplo\Pruebas\ESC. Adjudicacion - Daniel\Adquiriente\Daniel Juarez\CSF.pdf"
+    #])
+    ruta_abs = r"C:\Users\mdani\OneDrive\Desktop\Actos_Ejemplo\Pruebas\ESC. Adjudicacion - Daniel\Adquiriente\Daniel Juarez\CSF.pdf"
+    docs.upload_anexo(ruta_abs)    # realmente sube el archivo
+    docs.set_tipo_documento_anexo("CSF.pdf", "Constancia de identificación fiscal (compareciente o partes)")
+    docs.set_cliente_anexo("CSF.pdf", "DANIEL ARNULFO JUAREZ MARTINEZ")
+
+    # (Opcional) ver qué descripciones detecta el grid completo:
+    #print(docs.list_all_required_descriptions())
+
+    #Por si no se pono automaticamente lo de moral
     # time.sleep(1)
     # if( is_moral ):#Marcar como persona moral
     #     partes.marcar_persona_moral()
