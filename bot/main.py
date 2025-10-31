@@ -6,18 +6,21 @@ from urllib.parse import urlsplit
 from typing import List, Tuple, Optional, Dict, Any, Set
 
 import typer
+import time
 from loguru import logger
 from dotenv import load_dotenv
 
 from bot.pages.uif_modal import UifModal
+from bot.pages.projects_documents import ProjectsDocumentsPage
 from bot.pages.customer_detail_page import CustomerDetailPage
+from bot.pages.projects_parts import ProjectsPartesPage
 from bot.pages.customers_cif_modal import CustomersCifModal
-from bot.pages.clients_row_actions import ClientsRowActions
 from bot.pages.customers_create_confirm_modal import CustomersCreateConfirmModal
 from bot.core.browser import make_driver
 from bot.pages.login_page import LoginPage
 from bot.pages.dashboard_page import DashboardPage
 from bot.pages.clients_page import ClientsPage
+from bot.pages.projects_page import ProjectsPage
 from bot.core.acto_scanner import scan_acto_folder
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -293,6 +296,49 @@ def _process_party(driver, wait, base: str, party: Dict[str, str]) -> None:
         cp.open_direct(base)
         cp.assert_loaded()
 
+def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre):
+    """
+    data_json ej:
+    {
+      "abogado": "BOT SINGRAFOS BOTBI",
+      "cliente_principal": "DANIEL ARNULFO JUAREZ MARTINEZ",
+      "descripcion": "Proyecto auto generado por Botbi",
+      "acto": "ADJUDICACION JUDICIAL"   # o el que venga en tu JSON
+    }
+    """
+
+    pp = ProjectsPage(driver, wait)
+    pp.create_project(
+        abogado="BOT SINGRAFOS BOTBI",
+        cliente=cliente_principal,
+        descripcion=("\"PRUEBA BOTBI, ADJUDICACION - DANIEL\""),
+        acto=acto_nombre
+    )
+
+    clientes = []
+    for cl in pf_list:
+        clientes.append(cl)
+    for cl in pm_list:
+        clientes.append(cl)
+
+    print("CLIENTES\n")
+    print(clientes)
+
+    #partes = ProjectsPartesPage(driver, wait)    
+    #for cl in pf_list:
+    #    partes.click_agregar()
+    #    partes.escribir_busqueda_directorio(driver,wait,nombre=cl.get("nombre"))
+    #    partes.seleccionar_rol(rol_texto=cl.get("rol"))
+    #    partes.guardar_parte()
+    #    time.sleep(1)
+
+    #Apartado de documentos
+    docs = ProjectsDocumentsPage(driver, wait)
+    docs.open_documents_tab()
+    # time.sleep(1)
+    # if( is_moral ):#Marcar como persona moral
+    #     partes.marcar_persona_moral()
+
 # =========================
 # Pipeline (reutilizable)
 # =========================
@@ -328,6 +374,7 @@ def _pipeline(headless: bool):
 
         # 4) PF/PM -> consola y contexto
         pf_list, pm_list = _extract_partes_pf_pm(extraction)
+
         _print_partes_console(
             pf_list, pm_list,
             getattr(extraction, "acto_nombre", os.path.basename(target_acto))
@@ -338,8 +385,10 @@ def _pipeline(headless: bool):
             "pm": pm_list,
             "acto_dir": target_acto,
             "acto_nombre": getattr(extraction, "acto_nombre", os.path.basename(target_acto)),
+            "cliente_principal": getattr(extraction, "cliente_principal")
         }
 
+        """
         # 5) Ir a Clientes (una sola vez para obtener base) y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
         base = _origin_of(cur)  # p.ej. https://not84.singrafos.com
@@ -359,6 +408,9 @@ def _pipeline(headless: bool):
 
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
+        """
+        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"])
+        
 
     finally:
         input("INTRODUCE: ")

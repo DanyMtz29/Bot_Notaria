@@ -3,7 +3,9 @@ from typing import List, Tuple
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 Locator = Tuple[str, str]
 
@@ -52,3 +54,100 @@ class BasePage:
 
     def js_click(self, element):
         self.driver.execute_script("arguments[0].click();", element)
+
+    def __init__(self, driver, wait):
+        self.driver = driver
+        self.wait = wait
+
+    def _field_row_by_label(self, label_text: str):
+        """
+        Regresa el contenedor (row) del campo cuyo <label> visible coincide.
+        Soporta labels como: Abogado, Cliente, Descripción, Actos, etc.
+        """
+        # Busca el label por texto y toma el primer contenedor de input siguiente.
+        xpath = f"//label[normalize-space()='{label_text}']/following::*[self::div or self::input or self::textarea][1]"
+        return self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+
+    def kendo_open_dropdown_by_label(self, label_text: str):
+        """
+        Abre un Kendo DropDown/Combo asociado al label.
+        """
+        container = self._field_row_by_label(label_text)
+
+        # 1) intenta botón de flecha (k-input-button)
+        try:
+            btn = container.find_element(By.XPATH, ".//button[contains(@class,'k-input-button')]")
+            btn.click()
+            return container
+        except Exception:
+            pass
+
+        # 2) si no hay botón, intenta dar foco al input interno y abrir con ALT+↓ o click
+        try:
+            inp = container.find_element(By.XPATH, ".//input[contains(@class,'k-input-inner') or @placeholder='Buscar...']")
+            inp.click()
+            inp.send_keys(Keys.ALT, Keys.ARROW_DOWN)
+            return container
+        except Exception:
+            # último recurso: click al contenedor
+            container.click()
+            return container
+
+    def kendo_pick_visible_option(self, text: str, exact: bool = True, timeout: int = 10):
+        """
+        Selecciona un <li> del popup Kendo visible.
+        """
+        # popup visible de Kendo (no display:none)
+        popup_xpath = "//div[contains(@class,'k-animation-container') and not(contains(@style,'display: none'))]"
+        list_item_exact = f"{popup_xpath}//li[normalize-space()='{text}']"
+        list_item_contains = f"{popup_xpath}//li[contains(normalize-space(),'{text}')]"
+
+        try:
+            if exact:
+                opt = self.wait.until(EC.element_to_be_clickable((By.XPATH, list_item_exact)))
+            else:
+                opt = self.wait.until(EC.element_to_be_clickable((By.XPATH, list_item_contains)))
+            opt.click()
+            return True
+        except TimeoutException:
+            return False
+
+    def kendo_search_and_pick(self, label_text: str, query_text: str, exact: bool = True):
+        """
+        Abre el combo por label, escribe query y elige opción.
+        Sirve para Cliente y Actos.
+        """
+        container = self.kendo_open_dropdown_by_label(label_text)
+        # input de búsqueda/entrada
+        inp = None
+        try:
+            inp = container.find_element(By.XPATH, ".//input[contains(@class,'k-input-inner') or @placeholder='Buscar...']")
+        except Exception:
+            # a veces el input vive en el popup; forzamos abrir de nuevo y buscamos global
+            self.kendo_open_dropdown_by_label(label_text)
+
+        if inp is None:
+            # busca input global visible
+            inp = self.wait.until(EC.presence_of_element_located(
+                (By.XPATH, "//div[contains(@class,'k-popup') and not(contains(@style,'display: none'))]//input")
+            ))
+        inp.clear()
+        inp.send_keys(query_text)
+
+        # esperar resultados y elegir
+        picked = self.kendo_pick_visible_option(query_text if exact else query_text, exact=exact)
+        if not picked:
+            # intenta por "contiene" por si hay acentos/diferencias
+            picked = self.kendo_pick_visible_option(query_text, exact=False)
+        return picked
+
+    def set_textarea_by_label(self, label_text: str, value: str):
+        el = self._field_row_by_label(label_text)
+        # textarea o input
+        try:
+            ta = el if el.tag_name.lower() in ("input", "textarea") else el.find_element(By.XPATH, ".//textarea|.//input")
+        except Exception:
+            ta = el
+        ta.click()
+        ta.clear()
+        ta.send_keys(value)
