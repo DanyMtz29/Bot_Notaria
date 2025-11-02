@@ -19,6 +19,16 @@ class DocumentoPaths:
     ASAMBLEAS: List[str] = field(default_factory=list)
     OTROS: List[str] = field(default_factory=list)
 
+    def get(self, doc: str) -> str:
+        if doc == "CSF": return self.CSF
+        elif doc == "CURP": return self.CURP        
+        elif doc == "ACTA_NAC": return self.ACTA_NAC
+        elif doc == "INE": return self.INE
+        elif doc == "ACTA_MATRIMONIO": return self.ACTA_MATRIMONIO
+        elif doc == "COMP_DOMICILIO": return self.COMP_DOMICILIO
+        else: return None;
+
+
 @dataclass
 class Persona:
     nombre: Optional[str] = None
@@ -46,6 +56,21 @@ class Inmueble:
     nombre: str
     docs: Dict[str, Optional[str]] = field(default_factory=dict)
 
+    def get_name(self) -> str:
+        return self.nombre
+
+    #def get_docs(self) -> dict:
+        #return self.docs
+    def get(self, doc: str) -> str:
+        if doc == "Escritura Antecedente (Inmueble)": return self.docs["ESCRITURA_ANTECEDENTE"]
+        elif doc == "Recibo de pago del impuesto predial": return self.docs["RECIBO_PREDIAL"]
+        elif doc == "Avalúo Catastral": return self.docs["AVALUO_CATASTRAL"]
+        elif doc == "Aviso preventivo": return self.docs["AVISO_PREVENTIVO"]
+        elif doc == "Solicitud de Avalúo": return self.docs["SOLICITUD_AVALUO"]
+        elif doc == "Plano": return self.docs["PLANO"]
+        else: return None
+
+
 @dataclass
 class ActoExtraction:
     acto_nombre: str
@@ -57,74 +82,6 @@ class ActoExtraction:
     cliente_principal: Optional[str] = None
     cliente_fuente: Optional[str] = None  # "partes" o "carpeta"
     escritura: Optional[int] = None       # <== NUEVO
-
-    # def to_dict(self) -> dict:
-    #     def _pf(pf: PersonaFisica):
-    #         return {
-    #             "rol": pf.rol,
-    #             "persona": {
-    #                 "nombre": pf.persona.nombre,
-    #                 "rfc": pf.persona.rfc,
-    #                 "idcif": pf.persona.idcif,
-    #                 "docs": {
-    #                     "CSF": pf.persona.docs.CSF,
-    #                     "CURP": pf.persona.docs.CURP,
-    #                     "ACTA_NAC": pf.persona.docs.ACTA_NAC,
-    #                     "INE": pf.persona.docs.INE,
-    #                     "COMP_DOMICILIO": pf.persona.docs.COMP_DOMICILIO,
-    #                     "ACTA_MATRIMONIO": pf.persona.docs.ACTA_MATRIMONIO,
-    #                 }
-    #             },
-    #             "esposa_o_esposo": None if not pf.esposa_o_esposo else {
-    #                 "nombre": pf.esposa_o_esposo.nombre,
-    #                 "rfc": pf.esposa_o_esposo.rfc,
-    #                 "idcif": pf.esposa_o_esposo.idcif,
-    #                 "docs": {
-    #                     "CSF": pf.esposa_o_esposo.docs.CSF,
-    #                     "CURP": pf.esposa_o_esposo.docs.CURP,
-    #                     "ACTA_NAC": pf.esposa_o_esposo.docs.ACTA_NAC,
-    #                     "INE": pf.esposa_o_esposo.docs.INE,
-    #                     "COMP_DOMICILIO": pf.esposa_o_esposo.docs.COMP_DOMICILIO,
-    #                     "ACTA_MATRIMONIO": pf.esposa_o_esposo.docs.ACTA_MATRIMONIO,
-    #                 }
-    #             }
-    #         }
-
-    #     def _pm(pm: Sociedad):
-    #         return {
-    #             "rol": pm.rol,
-    #             "nombre": pm.nombre,
-    #             "rfc": pm.rfc,
-    #             "idcif": pm.idcif,
-    #             "representante": None if not pm.representante else {
-    #                 "nombre": pm.representante.nombre,
-    #                 "rfc": pm.representante.rfc,
-    #                 "idcif": pm.representante.idcif,
-    #                 "docs": {
-    #                     "CSF": pm.representante.docs.CSF,
-    #                     "CURP": pm.representante.docs.CURP,
-    #                     "ACTA_NAC": pm.representante.docs.ACTA_NAC,
-    #                     "INE": pm.representante.docs.INE,
-    #                     "COMP_DOMICILIO": pm.representante.docs.COMP_DOMICILIO,
-    #                     "ACTA_MATRIMONIO": pm.representante.docs.ACTA_MATRIMONIO,
-    #                 }
-    #             },
-    #             "docs": {
-    #                 "CSF_SOCIEDAD": pm.docs.CSF_SOCIEDAD,
-    #                 "ACTA_CONSTITUTIVA": pm.docs.ACTA_CONSTITUTIVA,
-    #                 "PODER_REPRESENTANTE": pm.docs.PODER_REPRESENTANTE,
-    #                 "ASAMBLEAS": pm.docs.ASAMBLEAS,
-    #                 "OTROS": pm.docs.OTROS,
-    #             }
-    #         }
-
-    #     return {
-    #         "acto_nombre": self.acto_nombre,
-    #         "partes_pf": [_pf(x) for x in self.partes_pf],
-    #         "partes_pm": [_pm(x) for x in self.partes_pm],
-    #         "inmuebles": [{"nombre": i.nombre, "docs": i.docs} for i in self.inmuebles],
-    #         "otros": self.otros,
-    #     }    
 
     def to_dict(self) -> dict:
         def _pf(pf: PersonaFisica):

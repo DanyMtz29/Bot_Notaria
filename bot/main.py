@@ -24,12 +24,17 @@ from bot.pages.projects_page import ProjectsPage
 from bot.core.acto_scanner import scan_acto_folder
 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.ui import Select
+from bot.core.json_file import json_file
 
+from selenium.webdriver.support import expected_conditions as EC
+from pathlib import Path
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
-lista_uifs = {}
+lista_uifs = []
+js = json_file()
 
 # =========================
 # Helpers de serialización
@@ -139,9 +144,10 @@ def _pf_to_dict(pf_obj) -> Optional[Dict[str, str]]:
             or _get(pf_obj, "idcif")
             or ""
         )
+        docs = _get(pf_obj, "docs") or _get(persona, "docs")
         if not nombre:
             return None
-        return {"tipo": "PF", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": str(idcif).strip()}
+        return {"tipo": "PF", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": str(idcif).strip(), "docs": docs}
     except Exception:
         return None
 
@@ -164,7 +170,8 @@ def _extract_partes_pf_pm(extraction) -> Tuple[List[Dict[str, str]], List[Dict[s
       - pf_list: [{'tipo':'PF','rol':..,'nombre':..,'rfc':..,'idcif':..}, ...]
       - pm_list: [{'tipo':'PM','rol':..,'nombre':..,'rfc':..,'idcif':..}, ...]
     """
-    pf_list: List[Dict[str, str]] = []
+    #pf_list: List[Dict[str, str]] = []
+    pf_list = []
     for pf in getattr(extraction, "partes_pf", []) or []:
         d = _pf_to_dict(pf)
         if d:
@@ -255,7 +262,8 @@ def _process_party(driver, wait, base: str, party: Dict[str, str]) -> None:
             uif = UifModal(driver, wait)
             # Ejecuta el flujo estándar: buscar de nuevo + descargar comprobante
             uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
-            lista_uifs[party['nombre_upper']] = UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
+            lista_uifs.append(UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party)))
+            #lista_uifs[party['nombre_upper']] = UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
             logger.success("UIF descargado y renombrado.")
         finally:
             # Regresa a Clientes para el siguiente ciclo
@@ -297,14 +305,102 @@ def _process_party(driver, wait, base: str, party: Dict[str, str]) -> None:
 
         uif = UifModal(driver, wait)
         uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
-        lista_uifs[party['nombre_upper']] = UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
+        lista_uifs.append(UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party)))
+        #lista_uifs[party['nombre_upper']] = UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
         logger.success("UIF descargado y renombrado (post-creación).")
     finally:
         cp.open_direct(base)
         cp.assert_loaded()
 
 
-def procesamiento_papeleria(driver, documents: list) -> None:
+def subir_lista_uifs(driver) -> None:
+    inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
+
+    #Listas_uifs de prueba
+    lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
+                  ["UIF_PF_Adquiriente_DANIEL_ARNULFO_JUAREZ_MARTINEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_DANIEL_ARNULFO_JUAREZ_MARTINEZ.pdf"]]
+    
+    for uif in lista_uifs:
+        inp.send_keys(uif[1])
+        time.sleep(3)
+        #Seleccionar la fila del archivo que se subio
+        #fila = driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{uif[0]}')] or .//*[contains(normalize-space(),'{uif[0]}')]]")
+        filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
+        fila = filas[-1]
+        #Seleccionar la columan 2, que es el 'Documento' y establecer que tipo de documento
+        Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text("Consulta UIF Lista Negra")
+        #Seleccionar el cliente que corresponde esa papeleria
+        driver.execute_script("arguments[0].value = '';", inp)#Remover los elementos anteriores
+        time.sleep(2)
+
+def subir_doc_inmuebles(driver, inmuebles: list, doc:str) -> bool:
+    """
+        Sube solo los docus de los inmuebles
+    """
+    inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
+    flag = True
+    for inm in inmuebles:
+        doc_path = inm.get(doc)
+        if doc_path != None:
+            inp.send_keys(doc_path)
+            time.sleep(3)
+            filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
+            fila = filas[-1]
+            Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc)
+            driver.execute_script("arguments[0].value = '';", inp)
+            time.sleep(2)
+        else:
+            add_coment(inm.get_name(), doc)
+            flag = False
+    return flag
+
+def subir_doc_partes_basicas(driver, clientes: list, doc: str) -> None:
+    """
+        Sube solo los docus basicos de las partes: CURP, ACTA DE NACIMIENTO, COMP_DOM, CSF, INE
+    """
+    doc_original = doc
+    if doc == "Comprobante de Domicilio (compareciente o partes)": doc = "COMP_DOMICILIO"
+    elif doc == "Identificación oficial (compareciente o partes)": doc = "INE"
+    elif doc == "Acta de nacimiento (compareciente o partes)": doc = "ACTA_NAC"
+    elif doc == "Constancia de identificación fiscal (compareciente o partes)": doc = "CSF"
+    elif doc == "CURP (compareciente o partes)": doc = "CURP"
+
+    inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
+    flag = True
+    for part in clientes:
+        if part.get("tipo") == "PF":
+            docs = part.get("docs")
+            doc_up = docs.get(doc)
+            if doc_up == None:
+                if not doc == "COMP_DOMICILIO":
+                    add_coment(part.get("nombre"), doc_original)
+                    flag = False
+            else:
+                inp.send_keys(doc_up)
+                time.sleep(3)
+                #fila = driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{Path(doc_up).name}')] or .//*[contains(normalize-space(),'{Path(doc_up).name}')]]")
+                filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
+                fila = filas[-1]
+                Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
+                Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
+                driver.execute_script("arguments[0].value = '';", inp)
+                time.sleep(2)
+    return flag
+        
+def add_coment(cliente: str, doc_faltante: str) -> None:
+    """
+        A;ADIR UN COMENTARIO PARA EL JSON
+    """
+    #Si no existe el archivo de faltantes.json, ahi que crearlo
+    global js
+    if not js.exists():
+        js.ensure({"faltantes": []})
+    
+    #Agregar lo faltante
+    js.list_append("faltantes", {"cliente": cliente, "doc": doc_faltante})
+       
+
+def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmuebles) -> None:
     """
         Metodo para procesar todos los documentos requeridos
     """
@@ -317,31 +413,22 @@ def procesamiento_papeleria(driver, documents: list) -> None:
                           "Constancia de identificación fiscal Sociedad"]
     papeleria_otros = ["Expediente judicial", "Forma ISAI Amarilla (Registro Publico)", "Recibo de pago ISAI",
                        "Recibo de pago Derechos de Registro"]
-
-    inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
-    global lista_uifs
-
-    print(lista_uifs)
-
-    #Subir el avaluo por si solo
-    for key, val in lista_uifs.items():
-        inp.send_keys(val[1])
-        time.sleep(1)
-        #Seleccionar la fila del archivo que se subio
-        fila = driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{val[0]}')] or .//*[contains(normalize-space(),'{val[0]}')]]")
-        #Seleccionar la columan 2, que es el 'Documento' y establecer que tipo de documento
-        Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text("Consulta UIF Lista Negra")
-        #Seleccionar el cliente que corresponde esa papeleria
-        Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(key)
-
-        driver.execute_script("arguments[0].value = '';", inp)#Remover los elementos anteriores
-        time.sleep(2)
-
-
-
-def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre):
-    """
     
+    for doc in documents:
+        #if doc == "Consulta UIF Lista Negra":
+        #    subir_lista_uifs(driver)
+        #    #Marcar como hecho la lista_uif
+        #    docs.set_faltante_by_description(doc, marcar=True)
+        #elif doc in papeleria_basica:
+        #    if subir_doc_partes_basicas(driver, clientes, doc):
+        #        docs.set_faltante_by_description(doc, marcar=True)
+        if doc in papeleria_inmuebles:
+            if subir_doc_inmuebles(driver,inmuebles,doc):
+                docs.set_faltante_by_description(doc, marcar=True)
+
+def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre, inmuebles):
+    """
+        Automatizacion del apartado documentos en la pagina de 'Proyectos'
     """
 
     pp = ProjectsPage(driver, wait)
@@ -358,7 +445,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     for cl in pm_list:
         clientes.append(cl)
 
-    #"""
+    """
     partes = ProjectsPartesPage(driver, wait)    
     for cl in pf_list:
         partes.click_agregar()
@@ -366,40 +453,19 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
         partes.seleccionar_rol(rol_texto=cl.get("rol"))
         partes.guardar_parte()
         time.sleep(1)
-    #"""
+    """
     #Apartado de documentos
     docs = ProjectsDocumentsPage(driver, wait)
     docs.open_documents_tab()
     time.sleep(2)
-    
-    # nombre = 'CSF.pdf'
-    # Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text("Constancia de identificación fiscal (compareciente o partes)")
-    # nombre = 'ine.pdf'
-    # fila = driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{nombre}')] or .//*[contains(normalize-space(),'{nombre}')]]")
-    # Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text("Identificación oficial (compareciente o partes)")
 
-    procesamiento_papeleria(driver, docs.list_all_required_descriptions())
-    #docs.set_faltante_by_description("Aviso preventivo", marcar=True)
-    #docs.set_faltante_by_description("Escritura Antecedente", marcar=True)
+    procesamiento_papeleria(driver, docs.list_all_required_descriptions(), docs, clientes, inmuebles)
 
     #Seleccionar botones
-    # docs.click_subir_documentos()
     # docs.click_importar_documentos()
 
-    #ruta_abs = r"C:\Users\mdani\OneDrive\Desktop\Actos_Ejemplo\Pruebas\ESC. Adjudicacion - Daniel\Adquiriente\Daniel Juarez\CSF.pdf"
-    #docs.upload_anexo(ruta_abs)    # realmente sube el archivo
-    #docs.set_tipo_documento_anexo("CSF.pdf", "Constancia de identificación fiscal (compareciente o partes)")
-    #docs.set_cliente_anexo("CSF.pdf", "DANIEL ARNULFO JUAREZ MARTINEZ")
 
-    # Ver total de documentos requeridos
-    #print(docs.list_all_required_descriptions())
 
-    #Por si no se pono automaticamente lo de moral
-    # time.sleep(1)
-    # if( is_moral ):#Marcar como persona moral
-    #     partes.marcar_persona_moral()
-
-# =========================
 # Pipeline
 # =========================
 def _pipeline(headless: bool):
@@ -417,7 +483,7 @@ def _pipeline(headless: bool):
     driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=10)
 
     try:
-        # 1) Login
+        #1) Login
         LoginPage(driver, wait).login(url, user, pwd)
         DashboardPage(driver, wait).assert_loaded()
         logger.info("Login OK")
@@ -445,10 +511,15 @@ def _pipeline(headless: bool):
             "pm": pm_list,
             "acto_dir": target_acto,
             "acto_nombre": getattr(extraction, "acto_nombre", os.path.basename(target_acto)),
-            "cliente_principal": getattr(extraction, "cliente_principal")
+            "cliente_principal": getattr(extraction, "cliente_principal"),
+            "inmuebles": getattr(extraction, "inmuebles"),
+            "otros":getattr(extraction, "otros")
         }
 
-        #"""
+        global js
+        js.set_path(target_acto + "\\_cache_bot")
+
+        """
         # 5) Ir a Clientes y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
         base = _origin_of(cur) 
@@ -468,8 +539,8 @@ def _pipeline(headless: bool):
 
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
-        #"""
-        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"])
+        """
+        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"], acto_ctx["inmuebles"])
         
 
     finally:
