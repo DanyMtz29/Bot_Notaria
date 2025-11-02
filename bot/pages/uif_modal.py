@@ -188,3 +188,4 @@ class UifModal:
 
         except Exception as e:
             logger.error(f"❌ Error al renombrar PDF: {e}")
+        return [nombre_destino, destino]

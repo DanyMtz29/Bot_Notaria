@@ -289,7 +289,6 @@ class ProjectsDocumentsPage(BasePage):
         - 'rutas' puede ser lista o string. Si son varios, se separan con '\n'.
         - Pasa rutas absolutas.
         """
-        import os
         if isinstance(rutas, str):
             rutas_list = [rutas]
         else:
@@ -334,13 +333,12 @@ class ProjectsDocumentsPage(BasePage):
         )
 
 
-    def upload_anexo(self, ruta_archivo: str, verificar_en_tabla: bool = True) -> None:
+    def upload_anexo(self,ruta_archivo: str) -> None:
         """
         Sube un archivo al área 'Documentos Anexos' sin abrir el diálogo del SO.
         - 'ruta_archivo' debe ser absoluta.
         - Si 'verificar_en_tabla' es True, espera a ver el archivo listado en la tabla.
         """
-        import os
         assert ruta_archivo and os.path.isabs(ruta_archivo), "Pasa una ruta absoluta."
         assert os.path.exists(ruta_archivo), f"No existe: {ruta_archivo}"
 
@@ -348,16 +346,11 @@ class ProjectsDocumentsPage(BasePage):
         inp = self.find_first_fast(self.SUBIR_DOCS_INPUT, per_try=2.0, visible=False)
 
         # 2) hacerlo interactuable (si está oculto por CSS)
-        self._make_file_input_visible(inp)
+        #self._make_file_input_visible(inp)
         self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", inp)
 
         # 3) subir el archivo (sin abrir diálogo)
         inp.send_keys(ruta_archivo)
-
-        # 4) verificación opcional en la tabla de anexos
-        # if verificar_en_tabla:
-        #     fname = os.path.basename(ruta_archivo)
-        #     self._wait_row_in_annexes(fname, timeout=15.0)
 
     def _annex_last_row(self):
         grid = self.find_first_fast(self.ANNEX_GRID, per_try=2.0, visible=True)
