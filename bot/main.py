@@ -24,6 +24,7 @@ from bot.pages.projects_page import ProjectsPage
 from bot.core.acto_scanner import scan_acto_folder
 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.ui import Select
 from bot.core.json_file import json_file
@@ -317,8 +318,8 @@ def subir_lista_uifs(driver) -> None:
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
 
     #Listas_uifs de prueba
-    lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
-                  ["UIF_PF_Adquiriente_DANIEL_ARNULFO_JUAREZ_MARTINEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_DANIEL_ARNULFO_JUAREZ_MARTINEZ.pdf"]]
+    # lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
+    #               ["UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf"]]
     
     for uif in lista_uifs:
         inp.send_keys(uif[1])
@@ -369,22 +370,26 @@ def subir_doc_partes_basicas(driver, clientes: list, doc: str) -> None:
     flag = True
     for part in clientes:
         if part.get("tipo") == "PF":
-            docs = part.get("docs")
-            doc_up = docs.get(doc)
-            if doc_up == None:
-                if not doc == "COMP_DOMICILIO":
-                    add_coment(part.get("nombre"), doc_original)
-                    flag = False
-            else:
-                inp.send_keys(doc_up)
+            #Primero chechar si no esta en importados
+            if checar_docs_importar(driver, part.get("nombre"), doc_original):
                 time.sleep(3)
-                #fila = driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{Path(doc_up).name}')] or .//*[contains(normalize-space(),'{Path(doc_up).name}')]]")
-                filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
-                fila = filas[-1]
-                Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
-                Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
-                driver.execute_script("arguments[0].value = '';", inp)
-                time.sleep(2)
+            else:
+                docs = part.get("docs")
+                doc_up = docs.get(doc)
+                if doc_up == None:
+                    if not doc == "COMP_DOMICILIO":
+                        add_coment(part.get("nombre"), doc_original)
+                        flag = False
+                else:
+                    inp.send_keys(doc_up)
+                    time.sleep(4)
+                    #fila = driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{Path(doc_up).name}')] or .//*[contains(normalize-space(),'{Path(doc_up).name}')]]")
+                    filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
+                    fila = filas[-1]
+                    Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
+                    Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
+                    driver.execute_script("arguments[0].value = '';", inp)
+                    time.sleep(2)
     return flag
         
 def add_coment(cliente: str, doc_faltante: str) -> None:
@@ -398,7 +403,32 @@ def add_coment(cliente: str, doc_faltante: str) -> None:
     
     #Agregar lo faltante
     js.list_append("faltantes", {"cliente": cliente, "doc": doc_faltante})
-       
+
+def checar_docs_importar(driver,cliente: str, doc:str) -> bool:
+    #Seleccionar el boton de importar
+    but = driver.find_element(By.XPATH,f"//div[@class='col-md-10']//div[@class='text-end']//button[@type='button']")
+    driver.execute_script("arguments[0].click();", but)
+
+    #tables = driver.find_elements(By.XPATH, "//div[@class='modal-body']//div[@class='form-group']")
+    #Obtener las tablas
+    if doc == "Acta de nacimiento (compareciente o partes)": doc = "nacimiento"
+    elif doc == "Comprobante de Domicilio (compareciente o partes)": doc = "Domicilio"
+    elif doc == "Constancia de identificación fiscal (compareciente o partes)": doc = "fiscal"
+
+    modal_body = driver.find_element(By.XPATH, ".//div[contains(@class,'modal-body')]")
+    table = modal_body.find_element(By.XPATH,f".//div[contains(@class, 'form-group') and contains(@class, 'row')][.//label[normalize-space(text())='{cliente}']]")
+    row = table.find_element(By.XPATH, ".//tbody[contains(@role,'rowgroup')]")
+    docs_ = row.find_elements(By.XPATH, f".//tr[.//td[contains(., '{doc}')]]")
+    si_hay = len(docs_)>0
+    if si_hay:
+        last = docs_[-1]
+        sub = last.find_element(By.XPATH, "./td[1]//input[@type='checkbox']")
+        sub.click()
+        
+    time.sleep(1) 
+    but_seleccionar = driver.find_element(By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space(text())='Regresar']")
+    driver.execute_script("arguments[0].click();", but_seleccionar)
+    return si_hay
 
 def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmuebles) -> None:
     """
@@ -415,22 +445,28 @@ def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmue
                        "Recibo de pago Derechos de Registro"]
     
     for doc in documents:
-        #if doc == "Consulta UIF Lista Negra":
-        #    subir_lista_uifs(driver)
-        #    #Marcar como hecho la lista_uif
-        #    docs.set_faltante_by_description(doc, marcar=True)
-        #elif doc in papeleria_basica:
-        #    if subir_doc_partes_basicas(driver, clientes, doc):
-        #        docs.set_faltante_by_description(doc, marcar=True)
+        print(f"DOC PROCESANDO: {doc}")
+        if doc == "Consulta UIF Lista Negra":
+           subir_lista_uifs(driver)
+           #Marcar como hecho la lista_uif
+           docs.set_faltante_by_description(doc, marcar=True)
+        elif doc in papeleria_basica:
+           if subir_doc_partes_basicas(driver, clientes, doc):
+               docs.set_faltante_by_description(doc, marcar=True)
         if doc in papeleria_inmuebles:
             if subir_doc_inmuebles(driver,inmuebles,doc):
                 docs.set_faltante_by_description(doc, marcar=True)
+    
+    but = driver.find_element(By.XPATH,f"//div[@class='col-md-10']//div[@class='text-end']//button[@type='button']")
+    driver.execute_script("arguments[0].click();", but)
+    time.sleep(1) 
+    but_seleccionar = driver.find_element(By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space(text())='Importar Seleccionados']")
+    driver.execute_script("arguments[0].click();", but_seleccionar)
 
 def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre, inmuebles):
     """
         Automatizacion del apartado documentos en la pagina de 'Proyectos'
     """
-
     pp = ProjectsPage(driver, wait)
     pp.create_project(
         abogado="BOT SINGRAFOS BOTBI",
@@ -444,27 +480,25 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
         clientes.append(cl)
     for cl in pm_list:
         clientes.append(cl)
-
-    """
+    
     partes = ProjectsPartesPage(driver, wait)    
     for cl in pf_list:
         partes.click_agregar()
-        partes.escribir_busqueda_directorio(driver,wait,nombre=cl.get("nombre"))
+        #partes.escribir_busqueda_directorio(driver,wait,nombre=cl.get("nombre"))
+        inp = driver.find_element(By.XPATH, "//div[@class='form-group']//input[@placeholder='Busca datos existentes por Nombre, CURP o RFC.']")
+        inp.send_keys(cl.get("nombre"))
+        time.sleep(4)
+        inp.send_keys(Keys.ARROW_DOWN, Keys.ENTER)
         partes.seleccionar_rol(rol_texto=cl.get("rol"))
         partes.guardar_parte()
         time.sleep(1)
-    """
+
     #Apartado de documentos
     docs = ProjectsDocumentsPage(driver, wait)
     docs.open_documents_tab()
     time.sleep(2)
 
     procesamiento_papeleria(driver, docs.list_all_required_descriptions(), docs, clientes, inmuebles)
-
-    #Seleccionar botones
-    # docs.click_importar_documentos()
-
-
 
 # Pipeline
 # =========================
@@ -516,10 +550,11 @@ def _pipeline(headless: bool):
             "otros":getattr(extraction, "otros")
         }
 
+        #Por si se requieren poner faltantes
         global js
         js.set_path(target_acto + "\\_cache_bot")
 
-        """
+        #"""
         # 5) Ir a Clientes y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
         base = _origin_of(cur) 
@@ -539,7 +574,7 @@ def _pipeline(headless: bool):
 
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
-        """
+        #"""
         _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"], acto_ctx["inmuebles"])
         
 
