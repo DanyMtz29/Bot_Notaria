@@ -160,6 +160,7 @@ class UifModal:
 
         # 2) Si no estaba, ejecuta la búsqueda y luego descarga
         self.click_buscar_de_nuevo(timeout=timeout_busqueda)
+        print("LLEGA!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         self.click_descargar_comprobante(timeout=timeout_descarga)
 
     def renombrar_ultimo_pdf(self, nombre_cliente: str, carpeta_cache: str = "bot/_cache_bot"):

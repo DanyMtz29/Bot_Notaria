@@ -1,32 +1,24 @@
 # bot/main.py
 import os
-import json
-from datetime import datetime
-from urllib.parse import urlsplit
-from typing import List, Tuple, Optional, Dict, Any, Set
-
 import typer
 import time
 from loguru import logger
 from dotenv import load_dotenv
 
-from bot.pages.uif_modal import UifModal
 from bot.pages.projects_documents import ProjectsDocumentsPage
-from bot.pages.customer_detail_page import CustomerDetailPage
-from bot.pages.projects_parts import ProjectsPartesPage
-from bot.pages.customers_cif_modal import CustomersCifModal
-from bot.pages.customers_create_confirm_modal import CustomersCreateConfirmModal
+
+from bot.pages.Proyectos.tap_partes import partesTap
+
 from bot.core.browser import make_driver
 from bot.pages.login_page import LoginPage
 from bot.pages.dashboard_page import DashboardPage
-from bot.pages.clients_page import ClientsPage
-from bot.pages.projects_page import ProjectsPage
+
+from bot.pages.Proyectos.tap_general import generalTap
 from bot.core.acto_scanner import scan_acto_folder
 
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.ui import Select
+from bot.JSON.procesar_folder import Folder
 from bot.core.json_file import json_file
 
 from selenium.webdriver.support import expected_conditions as EC
@@ -36,283 +28,7 @@ from pathlib import Path
 app = typer.Typer(add_completion=False, no_args_is_help=False)
 lista_uifs = []
 js = json_file()
-
-# =========================
-# Helpers de serialización
-# =========================
-def _to_jsonable(obj):
-    if obj is None:
-        return None
-    if isinstance(obj, (str, int, float, bool)):
-        return obj
-    if isinstance(obj, dict):
-        return {k: _to_jsonable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple, set)):
-        return [_to_jsonable(x) for x in obj]
-    try:
-        return {k: _to_jsonable(v) for k, v in obj.__dict__.items()}
-    except Exception:
-        return str(obj)
-
-# =========================
-# Helpers genéricos (safe get)
-# =========================
-def _get(obj: Any, key: str, default=None):
-    """Obtiene atributo o key (insensible a mayúsculas) de dict/obj."""
-    if obj is None:
-        return default
-    # dict exacto
-    if isinstance(obj, dict):
-        if key in obj:
-            return obj[key]
-        lk = key.lower()
-        for k, v in obj.items():
-            if str(k).lower() == lk:
-                return v
-        return default
-    # objeto con atributo
-    if hasattr(obj, key):
-        return getattr(obj, key)
-    # intento insensible a mayúsculas
-    for k in dir(obj):
-        if k.lower() == key.lower():
-            try:
-                return getattr(obj, k)
-            except Exception:
-                break
-    return default
-
-# =========================
-# Helpers de rutas/acto
-# =========================
-def _origin_of(url: str) -> str:
-    p = urlsplit(url)
-    return f"{p.scheme}://{p.netloc}"
-
-def _find_first_acto_without_cache(root_dir: str) -> Optional[str]:
-    """
-    Regresa la ruta de la primera carpeta de acto que NO tenga '_cache_bot'.
-    """
-    if not os.path.isdir(root_dir):
-        logger.error(f"Root inválido: {root_dir}")
-        return None
-
-    for name in sorted(os.listdir(root_dir)):
-        full = os.path.join(root_dir, name)
-        if not os.path.isdir(full):
-            continue
-        cache_dir = os.path.join(full, "_cache_bot")
-        if not os.path.exists(cache_dir):
-            logger.info(f"Acto elegible: {full}")
-            return full
-        else:
-            logger.debug(f"SKIP (ya tiene _cache_bot): {full}")
-    return None
-
-def _ensure_cache_and_write_json(acto_dir: str, extraction) -> str:
-    """
-    Crea /_cache_bot si no existe y guarda la extracción como JSON.
-    Regresa la ruta del JSON.
-    """
-    cache_dir = os.path.join(acto_dir, "_cache_bot")
-    os.makedirs(cache_dir, exist_ok=True)
-
-    payload = {
-        "acto_dir": acto_dir,
-        "acto_nombre": getattr(extraction, "acto_nombre", os.path.basename(acto_dir)),
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "data": _to_jsonable(extraction),
-    }
-    out_json = os.path.join(cache_dir, "acto.json")
-    with open(out_json, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    logger.success(f"JSON generado: {out_json}")
-    return out_json
-
-# =========================
-# Helpers de PARTES (PF/PM)
-# =========================
-def _pf_to_dict(pf_obj) -> Optional[Dict[str, str]]:
-    try:
-        rol = _get(pf_obj, "rol", "") or ""
-        persona = _get(pf_obj, "persona")
-        nombre = (_get(persona, "nombre") or _get(pf_obj, "nombre") or "").strip()
-        rfc = (_get(persona, "rfc") or _get(pf_obj, "rfc") or "").strip()
-        idcif = (
-            _get(persona, "idcif")
-            or _get(persona, "IdCIF")
-            or _get(persona, "IDCIF")
-            or _get(pf_obj, "idcif")
-            or ""
-        )
-        docs = _get(pf_obj, "docs") or _get(persona, "docs")
-        if not nombre:
-            return None
-        return {"tipo": "PF", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": str(idcif).strip(), "docs": docs}
-    except Exception:
-        return None
-
-def _pm_to_dict(pm_obj) -> Optional[Dict[str, str]]:
-    try:
-        rol = _get(pm_obj, "rol", "") or ""
-        # En PM el nombre suele ser la razón social
-        nombre = (_get(pm_obj, "nombre") or _get(pm_obj, "razon_social") or "").strip()
-        rfc = (_get(pm_obj, "rfc") or "").strip()
-        idcif = (_get(pm_obj, "idcif") or _get(pm_obj, "IdCIF") or _get(pm_obj, "IDCIF") or "").strip()
-        if not nombre:
-            return None
-        return {"tipo": "PM", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": idcif}
-    except Exception:
-        return None
-
-def _extract_partes_pf_pm(extraction) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
-    """
-    Devuelve:
-      - pf_list: [{'tipo':'PF','rol':..,'nombre':..,'rfc':..,'idcif':..}, ...]
-      - pm_list: [{'tipo':'PM','rol':..,'nombre':..,'rfc':..,'idcif':..}, ...]
-    """
-    #pf_list: List[Dict[str, str]] = []
-    pf_list = []
-    for pf in getattr(extraction, "partes_pf", []) or []:
-        d = _pf_to_dict(pf)
-        if d:
-            pf_list.append(d)
-
-    pm_list: List[Dict[str, str]] = []
-    for pm in getattr(extraction, "partes_pm", []) or []:
-        d = _pm_to_dict(pm)
-        if d:
-            pm_list.append(d)
-
-    return pf_list, pm_list
-
-def _print_partes_console(pf_list: List[Dict[str, str]], pm_list: List[Dict[str, str]], acto_nombre: str):
-    logger.info(f"== PARTES EXTRAÍDAS (sin inmuebles) :: {acto_nombre} ==")
-    if pf_list:
-        logger.info("Personas Físicas (PF):")
-        for d in pf_list:
-            logger.info(f"  - {d.get('rol') or 'ROL'} :: {d.get('nombre')} | RFC: {d.get('rfc') or '-'} | IdCIF: {d.get('idcif') or '-'}")
-    else:
-        logger.info("Personas Físicas (PF): [ninguna]")
-
-    if pm_list:
-        logger.info("Personas Morales (PM):")
-        for d in pm_list:
-            logger.info(f"  - {d.get('rol') or 'ROL'} :: {d.get('nombre')} | RFC: {d.get('rfc') or '-'} | IdCIF: {d.get('idcif') or '-'}")
-    else:
-        logger.info("Personas Morales (PM): [ninguna]")
-
-def _flatten_all_parties(pf_list: List[Dict[str, str]], pm_list: List[Dict[str, str]]) -> List[Dict[str, str]]:
-    """
-    Junta PF y PM en una sola lista y agrega nombre_upper.
-    Evita duplicados por (tipo, nombre_upper).
-    """
-    out: List[Dict[str, str]] = []
-    seen: Set[Tuple[str, str]] = set()
-
-    for src in (pf_list or []):
-        d = dict(src)
-        d["nombre_upper"] = (d.get("nombre") or "").upper().strip()
-        key = (d.get("tipo",""), d["nombre_upper"])
-        if d["nombre_upper"] and key not in seen:
-            seen.add(key)
-            out.append(d)
-
-    for src in (pm_list or []):
-        d = dict(src)
-        d["nombre_upper"] = (d.get("nombre") or "").upper().strip()
-        key = (d.get("tipo",""), d["nombre_upper"])
-        if d["nombre_upper"] and key not in seen:
-            seen.add(key)
-            out.append(d)
-
-    return out
-
-def _safe_pdf_name(party: Dict[str, str]) -> str:
-    base = f"{party.get('tipo','')}_{party.get('rol','')}_{party.get('nombre_upper','')}".strip("_")
-    # Limpia caracteres raros para nombre de archivo
-    cleaned = "".join(ch if ch.isalnum() or ch in (" ", "-", "_") else "_" for ch in base)
-    return cleaned.replace("  ", " ").replace(" ", "_")
-
-# =========================
-# Flujo por PARTE
-# =========================
-def _process_party(driver, wait, base: str, party: Dict[str, str]) -> None:
-    """
-    Para una parte:
-      - busca por nombre en Clientes
-      - si existe: abre detalle y saca UIF
-      - si no existe: crea por IdCIF y luego saca UIF
-    """
-    global lista_uifs
-    cp = ClientsPage(driver, wait)
-    cp.open_direct(base)
-    cp.assert_loaded()
-
-    logger.info(f"[{party.get('tipo')}/{party.get('rol') or '-'}] Buscando en Clientes: {party['nombre_upper']}")
-    found = cp.search_by_name(party["nombre_upper"], timeout=12)
-
-    if found:
-        logger.success("Cliente EXISTE en consola")
-        try:
-            cp.click_first_view()
-            logger.info("Detalle de cliente abierto (lupita).")
-            cdp = CustomerDetailPage(driver, wait)
-            cdp.click_busqueda_uif(timeout=20)
-
-            uif = UifModal(driver, wait)
-            # Ejecuta el flujo estándar: buscar de nuevo + descargar comprobante
-            uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
-            lista_uifs.append(UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party)))
-            #lista_uifs[party['nombre_upper']] = UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
-            logger.success("UIF descargado y renombrado.")
-        finally:
-            # Regresa a Clientes para el siguiente ciclo
-            cp.open_direct(base)
-            cp.assert_loaded()
-        return
-
-    # === NO EXISTE: crear por IdCIF ===
-    logger.info("Cliente NO existe; creando por IdCIF...")
-    cp.click_new()
-    logger.success("Formulario 'Nuevo Cliente' abierto.")
-    cp.click_crear_por_idcif()
-    logger.success("Flujo 'Crear por IdCIF' abierto.")
-
-    rfc = (party.get("rfc") or "").strip()
-    idcif = (party.get("idcif") or "").strip()
-
-    modal = CustomersCifModal(driver, wait)
-    modal.fill_and_consult(rfc, idcif)
-
-    # Crear cliente y confirmar
-    try:
-        modal.click_create_customer(timeout=25)
-        confirm = CustomersCreateConfirmModal(driver, wait)
-        confirm.confirm_without_email(timeout=25)
-        logger.success("Cliente creado por IdCIF.")
-    except Exception as e:
-        logger.warning(f"No se pudo completar creación automática (quizá ya existe o faltan datos): {e}")
-
-    # Regresar a Clientes y abrir detalle del recién creado/buscado
-    cp.open_direct(base)
-    cp.assert_loaded()
-    _ = cp.search_by_name(party["nombre_upper"], timeout=10)
-    try:
-        cp.click_first_view()
-        logger.info("Detalle de cliente abierto (post-creación).")
-        cdp = CustomerDetailPage(driver, wait)
-        cdp.click_busqueda_uif(timeout=20)
-
-        uif = UifModal(driver, wait)
-        uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
-        lista_uifs.append(UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party)))
-        #lista_uifs[party['nombre_upper']] = UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
-        logger.success("UIF descargado y renombrado (post-creación).")
-    finally:
-        cp.open_direct(base)
-        cp.assert_loaded()
-
+actos_folder = Folder()
 
 def subir_lista_uifs(driver) -> None:
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
@@ -467,42 +183,42 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     """
         Automatizacion del apartado documentos en la pagina de 'Proyectos'
     """
-    pp = ProjectsPage(driver, wait)
+    resto = 'COMENTARIOS EXTRA PARA DESCRIPCION'
+    pp = generalTap(driver, wait)
     pp.create_project(
         abogado="BOT SINGRAFOS BOTBI",
         cliente=cliente_principal,
-        descripcion=("\"PRUEBA BOTBI, ADJUDICACION - DANIEL\""),
+        descripcion=("\"PRUEBA BOTBI\" NOMBRE_CARPETA " + resto),
         acto=acto_nombre
     )
-    
+    #"""
     clientes = []
     for cl in pf_list:
         clientes.append(cl)
     for cl in pm_list:
         clientes.append(cl)
     
-    partes = ProjectsPartesPage(driver, wait)    
+    partes = partesTap(driver, wait)
     for cl in pf_list:
-        partes.click_agregar()
-        #partes.escribir_busqueda_directorio(driver,wait,nombre=cl.get("nombre"))
-        inp = driver.find_element(By.XPATH, "//div[@class='form-group']//input[@placeholder='Busca datos existentes por Nombre, CURP o RFC.']")
-        inp.send_keys(cl.get("nombre"))
-        time.sleep(4)
-        inp.send_keys(Keys.ARROW_DOWN, Keys.ENTER)
-        partes.seleccionar_rol(rol_texto=cl.get("rol"))
+        partes.agregar()
+        partes.set_cliente(cl.get("nombre"))
+        partes.set_rol(cl.get("rol").upper())
         partes.guardar_parte()
         time.sleep(1)
-
-    #Apartado de documentos
+        
+    # #Apartado de documentos
     docs = ProjectsDocumentsPage(driver, wait)
     docs.open_documents_tab()
     time.sleep(2)
-
+    #""" 
     procesamiento_papeleria(driver, docs.list_all_required_descriptions(), docs, clientes, inmuebles)
 
 # Pipeline
 # =========================
 def _pipeline(headless: bool):
+    #Variables globales
+    global js, actos_folder, lista_uifs
+
     load_dotenv("bot/config/.env")
 
     url = os.getenv("PORTAL_URL", "")
@@ -514,7 +230,7 @@ def _pipeline(headless: bool):
         logger.error("Faltan PORTAL_URL/USER/PASS y/o ACTOS_ROOT en .env")
         raise typer.Exit(code=2)
 
-    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=10)
+    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=20)
 
     try:
         #1) Login
@@ -523,19 +239,19 @@ def _pipeline(headless: bool):
         logger.info("Login OK")
 
         # 2) Buscar primer acto sin cache
-        target_acto = _find_first_acto_without_cache(actos_root)
+        target_acto = actos_folder._find_first_acto_without_cache(actos_root)
         if not target_acto:
             logger.warning("No hay actos nuevos (todos tienen _cache_bot). Nada que hacer.")
             return
 
         # 3) Escanear y guardar JSON
         extraction = scan_acto_folder(target_acto, acto_nombre=os.path.basename(target_acto))
-        json_path = _ensure_cache_and_write_json(target_acto, extraction)
+        json_path = actos_folder._ensure_cache_and_write_json(target_acto, extraction)
 
         # 4) PF/PM -> consola y contexto
-        pf_list, pm_list = _extract_partes_pf_pm(extraction)
+        pf_list, pm_list = actos_folder._extract_partes_pf_pm(extraction)
 
-        _print_partes_console(
+        actos_folder._print_partes_console(
             pf_list, pm_list,
             getattr(extraction, "acto_nombre", os.path.basename(target_acto))
         )
@@ -551,15 +267,14 @@ def _pipeline(headless: bool):
         }
 
         #Por si se requieren poner faltantes
-        global js
         js.set_path(target_acto + "\\_cache_bot")
 
-        #"""
+        """
         # 5) Ir a Clientes y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
-        base = _origin_of(cur) 
+        base = actos_folder._origin_of(cur) 
 
-        all_parties = _flatten_all_parties(acto_ctx["pf"], acto_ctx["pm"])
+        all_parties = actos_folder._flatten_all_parties(acto_ctx["pf"], acto_ctx["pm"])
         if not all_parties:
             logger.warning("No hay PARTES (PF/PM) para buscar/crear y sacar UIF.")
             return
@@ -568,13 +283,13 @@ def _pipeline(headless: bool):
         for idx, party in enumerate(all_parties, start=1):
             logger.info(f"===== PARTE {idx}/{len(all_parties)} :: {party.get('tipo')} | {party.get('rol') or '-'} | {party.get('nombre_upper')} =====")
             try:
-                _process_party(driver, wait, base, party)
+                actos_folder._process_party(lista_uifs, driver, wait, base, party)
             except Exception as e:
                 logger.exception(f"Error procesando parte [{party.get('nombre_upper')}]: {e}")
 
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
-        #"""
+        """
         _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"], acto_ctx["inmuebles"])
         
 

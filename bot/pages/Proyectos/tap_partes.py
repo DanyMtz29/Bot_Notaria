@@ -5,20 +5,78 @@ import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
+from ..base_page import BasePage
 from selenium.webdriver.support import expected_conditions as EC
 
 
 
-class ProjectsPartesPage:
+class partesTap(BasePage):
     """
     Acciones dentro de la pestaña 'Partes' del formulario de 'Nuevo Proyecto'.
     """
-
-    def __init__(self, driver, wait: WebDriverWait):
-        self.driver = driver
-        self.wait = wait
-
     # ---------- utils internos ----------
+
+    def agregar(self):
+        xpath = [
+            "//button[normalize-space()='Agregar']",
+            "//button[.//span[normalize-space()='Agregar']]",
+            "//button[@aria-label='Agregar' or @title='Agregar']",
+        ]
+        for xp in xpath:
+            try:
+                but = self.driver.find_element(By.XPATH, xp)
+                break
+            except Exception:
+                continue
+        if but:
+            self.driver.execute_script("arguments[0].click();", but)
+
+    def set_cliente(self, cliente:str) -> None:
+        inp = self.driver.find_element(By.XPATH, "//div[@class='form-group']//input[@placeholder='Busca datos existentes por Nombre, CURP o RFC.']")
+        inp.send_keys(cliente)
+        self.wait.until(
+            EC.presence_of_element_located(
+                (By.XPATH, f"//ul[contains(@id,'listbox') or contains(@class,'k-list')]//li[contains(., '{cliente}')]")
+            )
+        )
+        inp.send_keys(Keys.ARROW_DOWN)
+        inp.send_keys(Keys.ENTER)
+        time.sleep(1)
+
+    def guardar_parte(self):
+        try:
+            but = self.driver.find_element(By.XPATH, "//button[contains(2class, 'btn-outline-success') and contains(normalize-space()='Guardar')]")
+            self.driver.execute_script("arguments[0].click();", but)
+        except Exception:
+            print("NO SE PUDO SELECCIONAR EL BOTON")
+
+    def set_rol(self, rol:str)->None:
+        try:
+            fila_rol = self.driver.find_element(
+                By.XPATH,
+                "//div[contains(@class,'form-group') and .//label[normalize-space()='Rol']]"
+            )
+            campo_rol = fila_rol.find_element(By.XPATH, ".//span[contains(@class,'k-input-inner')]")
+            campo_rol.click()
+
+            self.wait.until(
+                EC.presence_of_element_located(
+                    (By.XPATH, "//ul[contains(@id,'listbox') or contains(@class,'k-list')]//li")
+                )
+            )
+
+            opcion = self.wait.until(EC.element_to_be_clickable((
+                By.XPATH,
+                f"//ul[contains(@id,'listbox') or contains(@class,'k-list')]//li[contains(., '{rol}')]"
+            )))
+            opcion.click()
+            self.wait.until(EC.text_to_be_present_in_element(
+                (By.XPATH, "//kendo-dropdownlist//span[contains(@class,'k-input-value-text')]"),
+                rol
+            ))
+            #print(f"Rol '{rol}' seleccionado correctamente.")
+        except Exception as e:
+            print(f"Error al seleccionar el rol '{rol}': {e}")
 
     def _root(self):
         """
