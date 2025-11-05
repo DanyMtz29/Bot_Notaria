@@ -1,13 +1,18 @@
 # bot/main.py
-import os
-import typer
-import time
+import os, typer, time, json
+
+from collections import OrderedDict
+from datetime import datetime
 from loguru import logger
 from dotenv import load_dotenv
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 from bot.pages.projects_documents import ProjectsDocumentsPage
 
 from bot.pages.Proyectos.tap_partes import partesTap
+from bot.pages.Proyectos.tap_comentarios import comentariosTab
 
 from bot.core.browser import make_driver
 from bot.pages.login_page import LoginPage
@@ -21,12 +26,10 @@ from selenium.webdriver.support.ui import Select
 from bot.JSON.procesar_folder import Folder
 from bot.core.json_file import json_file
 
-from selenium.webdriver.support import expected_conditions as EC
-from pathlib import Path
-
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
 lista_uifs = []
+lista_comentarios = {}
 js = json_file()
 actos_folder = Folder()
 
@@ -34,12 +37,13 @@ def subir_lista_uifs(driver) -> None:
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
 
     #Listas_uifs de prueba
-    # lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
-    #               ["UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf"]]
+    lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
+                  ["UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf"]]
     
     for uif in lista_uifs:
         inp.send_keys(uif[1])
-        time.sleep(3)
+        #time.sleep(3)
+        esperar_subida(driver)
         #Seleccionar la fila del archivo que se subio
         #fila = driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{uif[0]}')] or .//*[contains(normalize-space(),'{uif[0]}')]]")
         filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
@@ -48,26 +52,33 @@ def subir_lista_uifs(driver) -> None:
         Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text("Consulta UIF Lista Negra")
         #Seleccionar el cliente que corresponde esa papeleria
         driver.execute_script("arguments[0].value = '';", inp)#Remover los elementos anteriores
-        time.sleep(2)
+        time.sleep(1)
 
 def subir_doc_inmuebles(driver, inmuebles: list, doc:str) -> bool:
     """
         Sube solo los docus de los inmuebles
     """
+    global lista_comentarios
+
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
     flag = True
     for inm in inmuebles:
         doc_path = inm.get(doc)
         if doc_path != None:
             inp.send_keys(doc_path)
-            time.sleep(3)
+            esperar_subida(driver)
             filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
             fila = filas[-1]
             Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc)
             driver.execute_script("arguments[0].value = '';", inp)
-            time.sleep(2)
+            time.sleep(1)
         else:
-            add_coment(inm.get_name(), doc)
+            #add_coment(inm.get_name(), doc)
+            tup = ("INM",inm.get_name(), 'INM')
+            if tup in lista_comentarios:
+                lista_comentarios[tup].append(doc)
+            else:
+                lista_comentarios[tup] = [doc]
             flag = False
     return flag
 
@@ -75,6 +86,7 @@ def subir_doc_partes_basicas(driver, clientes: list, doc: str) -> None:
     """
         Sube solo los docus basicos de las partes: CURP, ACTA DE NACIMIENTO, COMP_DOM, CSF, INE
     """
+    global lista_comentarios
     doc_original = doc
     if doc == "Comprobante de Domicilio (compareciente o partes)": doc = "COMP_DOMICILIO"
     elif doc == "Identificación oficial (compareciente o partes)": doc = "INE"
@@ -84,30 +96,43 @@ def subir_doc_partes_basicas(driver, clientes: list, doc: str) -> None:
 
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
     flag = True
+    wait = WebDriverWait(driver, 20)
     for part in clientes:
         if part.get("tipo") == "PF":
             #Primero chechar si no esta en importados
             if checar_docs_importar(driver, part.get("nombre"), doc_original):
-                time.sleep(3)
+                time.sleep(1)
             else:
                 docs = part.get("docs")
                 doc_up = docs.get(doc)
                 if doc_up == None:
                     if not doc == "COMP_DOMICILIO":
-                        add_coment(part.get("nombre"), doc_original)
+                        #add_coment(part.get("nombre"), doc_original)
+                        tup = ("PF",part.get("nombre"), part.get('rol'))
+                        if tup in lista_comentarios:
+                            lista_comentarios[tup].append(doc_original)
+                        else:
+                            lista_comentarios[tup] = [doc_original]
                         flag = False
                 else:
                     inp.send_keys(doc_up)
-                    time.sleep(4)
-                    #fila = driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{Path(doc_up).name}')] or .//*[contains(normalize-space(),'{Path(doc_up).name}')]]")
-                    filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
+                    esperar_subida(driver)
+                    filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
                     fila = filas[-1]
                     Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
                     Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
                     driver.execute_script("arguments[0].value = '';", inp)
-                    time.sleep(2)
+                    time.sleep(1)
     return flag
         
+def esperar_subida(driver):
+    #oculto = driver.find_element(By.XPATH,"//div[contains(@class,'d-none') and contains(@class,'ms-2')][.//strong[normalize-space()='0']]")
+    wait = WebDriverWait(driver, 15)
+    wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'col-md-8') and contains(@class,'ms-2')][.//strong[normalize-space()='1']]")))
+    wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class,'d-none') and contains(@class,'ms-2')][.//strong[normalize-space()='0']]")))
+    # print("CHECAR OCULTO: ")
+    # print(oculto.get_attribute("outerHTML"))
+
 def add_coment(cliente: str, doc_faltante: str) -> None:
     """
         A;ADIR UN COMENTARIO PARA EL JSON
@@ -146,7 +171,7 @@ def checar_docs_importar(driver,cliente: str, doc:str) -> bool:
     driver.execute_script("arguments[0].click();", but_seleccionar)
     return si_hay
 
-def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmuebles) -> None:
+def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmuebles: list) -> None:
     """
         Metodo para procesar todos los documentos requeridos
     """
@@ -179,7 +204,7 @@ def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmue
     but_seleccionar = driver.find_element(By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space(text())='Importar Seleccionados']")
     driver.execute_script("arguments[0].click();", but_seleccionar)
 
-def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre, inmuebles):
+def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre, inmuebles: list, ruta: str):
     """
         Automatizacion del apartado documentos en la pagina de 'Proyectos'
     """
@@ -198,6 +223,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     for cl in pm_list:
         clientes.append(cl)
     
+    #"""
     partes = partesTap(driver, wait)
     for cl in pf_list:
         partes.agregar()
@@ -206,17 +232,74 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
         partes.guardar_parte()
         time.sleep(1)
         
+    #"""
     # #Apartado de documentos
     docs = ProjectsDocumentsPage(driver, wait)
     docs.open_documents_tab()
     time.sleep(2)
-    #""" 
+
     procesamiento_papeleria(driver, docs.list_all_required_descriptions(), docs, clientes, inmuebles)
+    guardar_papeleria_JSON(ruta)
+    if lista_comentarios:
+        for tup, lis in lista_comentarios.items():
+            comentarios = ["Falta papeleria del "]
+            if tup[0] != 'INM':
+                comentarios.append(f"Cliente {tup[1]}: ")
+            else:
+                comentarios.append(f"Inmueble: {tup[1]}: ")
+            for i in range(0,(len(lis))):
+                comentarios.append(f"{i+1}.-{lis[i]}. ")
+            comentarios.append("\n")
+            comentario_subir = "".join(comentarios)
+            comentarios_tab = comentariosTab(driver,wait)
+            comentarios_tab.open_tap_comentarios()
+            comentarios_tab.agregar_comentario(comentario_subir)
+            comentarios_tab.enviar_comentario()
+            time.sleep(1)
+        comentarios_tab.guardar_proyecto()
+    # print("PAPELERIA FALTANTE")
+    # for tup, lis in lista_comentarios.items():
+    #     if tup[0] == "PF":
+    #         print(f"Nombre del cliente: {tup[1]}")
+    #     else:
+    #         print(f"Inmueble: {tup[1]}")
+    #     for i in range(0, len(lis)):
+    #         print(f"{i+1}. {lis[i]}")
+    #     print("\n")
+
+def guardar_papeleria_JSON(ruta: str):
+    """
+    Guarda en JSON con estructura:
+    {
+        "Fecha de registro": "YYYY-MM-DDTHH:MM:SS",
+        "('Tipo', 'Nombre', 'Rol')": [faltantes],
+        ...
+    }
+    """
+    print(ruta)
+    ruta = os.path.join(ruta, "papeleria_faltante.json")
+
+    # Crear un OrderedDict para mantener la fecha primero
+    data_ordenada = OrderedDict()
+
+    # Agregar la fecha primero
+    data_ordenada["Fecha de registro"] = datetime.now().isoformat(timespec="seconds")
+
+    # Agregar el resto (con llaves de tupla convertidas a string)
+    for k, v in lista_comentarios.items():
+        data_ordenada[str(k)] = v
+
+    # Guardar en archivo JSON
+    with open(ruta, "w", encoding="utf-8") as f:
+        json.dump(data_ordenada, f, indent=4, ensure_ascii=False)
+
+    print(f"✅ Papelería guardada con fecha en: {ruta}")
 
 # Pipeline
 # =========================
 def _pipeline(headless: bool):
     #Variables globales
+
     global js, actos_folder, lista_uifs
 
     load_dotenv("bot/config/.env")
@@ -266,9 +349,6 @@ def _pipeline(headless: bool):
             "otros":getattr(extraction, "otros")
         }
 
-        #Por si se requieren poner faltantes
-        js.set_path(target_acto + "\\_cache_bot")
-
         """
         # 5) Ir a Clientes y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
@@ -290,8 +370,7 @@ def _pipeline(headless: bool):
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
         """
-        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"], acto_ctx["inmuebles"])
-        
+        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"], acto_ctx["inmuebles"], os.path.dirname(acto_ctx["json_path"]))
 
     finally:
         input("INTRODUCE: ")

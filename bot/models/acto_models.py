@@ -59,8 +59,6 @@ class Inmueble:
     def get_name(self) -> str:
         return self.nombre
 
-    #def get_docs(self) -> dict:
-        #return self.docs
     def get(self, doc: str) -> str:
         if doc == "Escritura Antecedente (Inmueble)": return self.docs["ESCRITURA_ANTECEDENTE"]
         elif doc == "Recibo de pago del impuesto predial": return self.docs["RECIBO_PREDIAL"]
