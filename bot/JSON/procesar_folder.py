@@ -65,7 +65,7 @@ class Folder:
         p = urlsplit(url)
         return f"{p.scheme}://{p.netloc}"
 
-    def _find_first_acto_without_cache(self,root_dir: str) -> Optional[str]:
+    def _find_first_acto_without_cache(self,root_dir: str) -> list:#Optional[str]:
         """
         Regresa la ruta de la primera carpeta de acto que NO tenga '_cache_bot'.
         """
@@ -80,9 +80,10 @@ class Folder:
             cache_dir = os.path.join(full, "_cache_bot")
             if not os.path.exists(cache_dir):
                 logger.info(f"Acto elegible: {full}")
-                return full
+                return [full,True]
             else:
                 logger.debug(f"SKIP (ya tiene _cache_bot): {full}")
+                return [full,False]
         return None
 
     def _ensure_cache_and_write_json(self,acto_dir: str, extraction) -> str:

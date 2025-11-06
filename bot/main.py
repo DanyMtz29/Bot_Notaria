@@ -14,10 +14,6 @@ from bot.pages.projects_documents import ProjectsDocumentsPage
 from bot.pages.Proyectos.tap_partes import partesTap
 from bot.pages.Proyectos.tap_comentarios import comentariosTab
 
-from bot.core.browser import make_driver
-from bot.pages.login_page import LoginPage
-from bot.pages.dashboard_page import DashboardPage
-
 from bot.pages.Proyectos.tap_general import generalTap
 from bot.core.acto_scanner import scan_acto_folder
 
@@ -25,6 +21,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from bot.JSON.procesar_folder import Folder
 from bot.core.json_file import json_file
+from bot.core.faltantes import FaltantesService
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -313,20 +310,39 @@ def _pipeline(headless: bool):
         logger.error("Faltan PORTAL_URL/USER/PASS y/o ACTOS_ROOT en .env")
         raise typer.Exit(code=2)
 
-    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=20)
+    #driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=20)
 
     try:
         #1) Login
-        LoginPage(driver, wait).login(url, user, pwd)
-        DashboardPage(driver, wait).assert_loaded()
-        logger.info("Login OK")
+        # LoginPage(driver, wait).login(url, user, pwd)
+        # DashboardPage(driver, wait).assert_loaded()
+        # logger.info("Login OK")
 
         # 2) Buscar primer acto sin cache
-        target_acto = actos_folder._find_first_acto_without_cache(actos_root)
-        if not target_acto:
-            logger.warning("No hay actos nuevos (todos tienen _cache_bot). Nada que hacer.")
+        target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)
+        
+        if flag:
+            #logger.warning("No hay actos nuevos (todos tienen _cache_bot). Nada que hacer.")
+            logger.warning("NO TIENE CACHE")
             return
+        else:
+            logger.warning("YA TIENE CACHE")
+            archivos_para_subir, json_actualizado = FaltantesService.procesar_proyecto(target_acto)
+            # archivos_para_subir: { key_str : [(nombre_doc, ruta_abs), ...] }
+            for key, pairs in archivos_para_subir.items():
+                for nombre_doc, ruta in pairs:
+                    print(key)
+                    # aquí usas tu flujo Selenium para subir 'ruta' y etiquetarlo como 'nombre_doc'
+                    print("Subir:", nombre_doc, "->", ruta)
 
+            # Si json_actualizado sólo tiene "Fecha de registro", ya está completo.
+            if list(json_actualizado.keys()) == ["Fecha de registro"]:
+                print("✅ Proyecto completo. Sin faltantes.")
+            else:
+                print("Aun faltan archivos!!")
+                
+            return
+        
         # 3) Escanear y guardar JSON
         extraction = scan_acto_folder(target_acto, acto_nombre=os.path.basename(target_acto))
         json_path = actos_folder._ensure_cache_and_write_json(target_acto, extraction)
@@ -370,7 +386,7 @@ def _pipeline(headless: bool):
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
         """
-        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"], acto_ctx["inmuebles"], os.path.dirname(acto_ctx["json_path"]))
+        #_fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"], acto_ctx["inmuebles"], os.path.dirname(acto_ctx["json_path"]))
 
     finally:
         input("INTRODUCE: ")
