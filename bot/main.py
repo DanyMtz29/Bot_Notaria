@@ -7,7 +7,6 @@ from loguru import logger
 from dotenv import load_dotenv
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 from bot.pages.projects_documents import ProjectsDocumentsPage
 
@@ -22,6 +21,11 @@ from selenium.webdriver.support.ui import Select
 from bot.JSON.procesar_folder import Folder
 from bot.core.json_file import json_file
 from bot.core.faltantes import FaltantesService
+#from bot.core.gmail_send import send_email
+from bot.core.browser import make_driver
+from bot.pages.dashboard_page import DashboardPage
+from bot.pages.login_page import LoginPage
+from bot.core.acto_detector import ActoResolver
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -34,8 +38,8 @@ def subir_lista_uifs(driver) -> None:
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
 
     #Listas_uifs de prueba
-    lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
-                  ["UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf"]]
+    # lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
+    #               ["UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf"]]
     
     for uif in lista_uifs:
         inp.send_keys(uif[1])
@@ -201,7 +205,7 @@ def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmue
     but_seleccionar = driver.find_element(By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space(text())='Importar Seleccionados']")
     driver.execute_script("arguments[0].click();", but_seleccionar)
 
-def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre, inmuebles: list, ruta: str):
+def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre, descripcion, inmuebles: list, ruta: str):
     """
         Automatizacion del apartado documentos en la pagina de 'Proyectos'
     """
@@ -210,7 +214,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     pp.create_project(
         abogado="BOT SINGRAFOS BOTBI",
         cliente=cliente_principal,
-        descripcion=("\"PRUEBA BOTBI\" NOMBRE_CARPETA " + resto),
+        descripcion=("\"PRUEBA BOTBI\"" + descripcion),
         acto=acto_nombre
     )
     #"""
@@ -296,6 +300,15 @@ def guardar_papeleria_JSON(ruta: str):
 # =========================
 def _pipeline(headless: bool):
     #Variables globales
+    
+    # send_email(
+    #     to="danieljm2901@gmail.com",
+    #     subject="HOLA DANIEL!!",
+    #     body_html="<h1>ESTIMADO QUERIDO AMIGO:</h1><p>Sientase orgulloso de la vida.</p>",
+    #     body_text="Es un dia maravilloso para estar en cama."
+    # )
+
+    #return
 
     global js, actos_folder, lista_uifs
 
@@ -310,21 +323,20 @@ def _pipeline(headless: bool):
         logger.error("Faltan PORTAL_URL/USER/PASS y/o ACTOS_ROOT en .env")
         raise typer.Exit(code=2)
 
-    #driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=20)
+    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=20)
 
     try:
         #1) Login
-        # LoginPage(driver, wait).login(url, user, pwd)
-        # DashboardPage(driver, wait).assert_loaded()
-        # logger.info("Login OK")
+        LoginPage(driver, wait).login(url, user, pwd)
+        DashboardPage(driver, wait).assert_loaded()
+        logger.info("Login OK")
 
         # 2) Buscar primer acto sin cache
         target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)
         
         if flag:
-            #logger.warning("No hay actos nuevos (todos tienen _cache_bot). Nada que hacer.")
-            logger.warning("NO TIENE CACHE")
-            return
+            logger.warning("No hay actos nuevos (todos tienen _cache_bot). Nada que hacer.")
+            #logger.warning("NO TIENE CACHE")
         else:
             logger.warning("YA TIENE CACHE")
             archivos_para_subir, json_actualizado = FaltantesService.procesar_proyecto(target_acto)
@@ -340,9 +352,13 @@ def _pipeline(headless: bool):
                 print("✅ Proyecto completo. Sin faltantes.")
             else:
                 print("Aun faltan archivos!!")
-                
-            return
         
+        
+        resolver = ActoResolver()
+        left, middle, right = resolver._split_por_guiones(os.path.basename(target_acto))
+        _, titulo = resolver._extraer_escritura_y_titulo(left)
+        descripcion = " – ".join(filter(None, [titulo, middle, right]))
+
         # 3) Escanear y guardar JSON
         extraction = scan_acto_folder(target_acto, acto_nombre=os.path.basename(target_acto))
         json_path = actos_folder._ensure_cache_and_write_json(target_acto, extraction)
@@ -365,7 +381,7 @@ def _pipeline(headless: bool):
             "otros":getattr(extraction, "otros")
         }
 
-        """
+        #"""
         # 5) Ir a Clientes y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
         base = actos_folder._origin_of(cur) 
@@ -385,8 +401,8 @@ def _pipeline(headless: bool):
 
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
-        """
-        #_fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"], acto_ctx["inmuebles"], os.path.dirname(acto_ctx["json_path"]))
+        #"""
+        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"],descripcion, acto_ctx["inmuebles"], os.path.dirname(acto_ctx["json_path"]))
 
     finally:
         input("INTRODUCE: ")

@@ -1,5 +1,6 @@
 import os
 import json
+import time
 
 from loguru import logger
 from datetime import datetime
@@ -11,6 +12,8 @@ from bot.pages.clients_page import ClientsPage
 from bot.pages.customer_detail_page import CustomerDetailPage
 from bot.pages.customers_cif_modal import CustomersCifModal
 from bot.pages.customers_create_confirm_modal import CustomersCreateConfirmModal
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
 
 class Folder:
     # =========================
@@ -211,6 +214,17 @@ class Folder:
         cleaned = "".join(ch if ch.isalnum() or ch in (" ", "-", "_") else "_" for ch in base)
         return cleaned.replace("  ", " ").replace(" ", "_")
 
+    def check(self, xpath):
+        try:
+            self.wait.until(
+                EC.presence_of_element_located((By.XPATH, xpath))
+            )
+            return True;
+        except Exception:
+            return False
+
+    def press(self, but):
+        self.driver.execute_script("arguments[0].click();", but)
     # =========================
     # Flujo por PARTE
     # =========================
@@ -236,9 +250,29 @@ class Folder:
                 cdp = CustomerDetailPage(driver, wait)
                 cdp.click_busqueda_uif(timeout=20)
 
-                uif = UifModal(driver, wait)
-                # Ejecuta el flujo estándar: buscar de nuevo + descargar comprobante
-                uif.buscar_de_nuevo_y_descargar(timeout_busqueda=40, timeout_descarga=60)
+                #CAMBIO DE PORTAL, ACTUALIZACION===========================================
+                XPATH_HIST = "//button[contains(@class, 'btn-light') and contains(., 'Comprobante Histórico')]"
+                XPATH_BUSCAR = "//button[contains(@class, 'btn-primary') and contains(., 'Buscar de nuevo')]"
+                try:
+                    # Esperar a que haya al menos un botón de comprobante histórico
+                    wait.until(EC.presence_of_element_located((By.XPATH, XPATH_HIST)))
+                    botones = driver.find_elements(By.XPATH, XPATH_HIST)
+                    boton_hist = botones[-1]  # siempre el último
+                except:
+                    buscar_btn = wait.until(EC.element_to_be_clickable((By.XPATH, XPATH_BUSCAR)))
+                    buscar_btn.click()
+
+                    # Esperar a que aparezca al menos un botón de comprobante histórico
+                    wait.until(EC.presence_of_element_located((By.XPATH, XPATH_HIST)))
+                    time.sleep(1.5)  # pequeño respiro extra por carga dinámica
+                    botones = driver.find_elements(By.XPATH, XPATH_HIST)
+                    boton_hist = botones[-1]
+
+                # Clic en el último botón encontrado
+                wait.until(EC.element_to_be_clickable(boton_hist))
+                boton_hist.click()
+                time.sleep(3)
+                
                 lista_uifs.append(UifModal(driver, wait).renombrar_ultimo_pdf(self._safe_pdf_name(party)))
                 #lista_uifs[party['nombre_upper']] = UifModal(driver, wait).renombrar_ultimo_pdf(_safe_pdf_name(party))
                 logger.success("UIF descargado y renombrado.")

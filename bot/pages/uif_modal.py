@@ -57,7 +57,7 @@ class UifModal:
             "contains(translate(normalize-space(.),"
             "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜ',"
             "'abcdefghijklmnopqrstuvwxyzáéíóúü'),"
-            "'descargar comprobante')]",
+            "'Comprobante Histórico')]",
         )
 
     def _btn_descargar_grid_relaxed(self):
@@ -67,7 +67,7 @@ class UifModal:
             ".//kendo-grid//button[contains(translate(normalize-space(.),"
             "'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜ',"
             "'abcdefghijklmnopqrstuvwxyzáéíóúü'),"
-            "'descargar comprobante')]",
+            "'Comprobante Histórico')]",
         )
 
     # ----------------------
@@ -159,8 +159,7 @@ class UifModal:
             return
 
         # 2) Si no estaba, ejecuta la búsqueda y luego descarga
-        self.click_buscar_de_nuevo(timeout=timeout_busqueda)
-        print("LLEGA!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        #self.click_buscar_de_nuevo(timeout=timeout_busqueda)
         self.click_descargar_comprobante(timeout=timeout_descarga)
 
     def renombrar_ultimo_pdf(self, nombre_cliente: str, carpeta_cache: str = "bot/_cache_bot"):

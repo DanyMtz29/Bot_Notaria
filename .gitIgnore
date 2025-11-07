@@ -1,4 +1,5 @@
 #Variables
+config/
 *.env
 
 #Lo que el python genera
