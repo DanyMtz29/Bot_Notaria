@@ -3,6 +3,8 @@ from __future__ import annotations
 from selenium.webdriver.common.by import By
 from ..base_page import BasePage
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+import time
 
 class comentariosTab(BasePage):
 
@@ -40,7 +42,7 @@ class comentariosTab(BasePage):
         else:
             print("NO SE PUDO SELECCIONAR EL BOTON DE ENVIAR XC")
     
-    def guardar_proyecto(self):
+    def guardar_proyecto(self, timeout=30):
         xpath = [
             "//button[normalize-space()='Guardar']",
             "//button[.//span[normalize-space()='Guardar']]",
@@ -53,7 +55,27 @@ class comentariosTab(BasePage):
             except Exception:
                 continue
         if but:
-            #self.driver.execute_script("arguments[0].click();", but)
-            self.driver.execute_script("arguments[0].style.border='3px solid red'", but)
+            self.driver.execute_script("arguments[0].click();", but)
+            #self.driver.execute_script("arguments[0].style.border='3px solid red'", but)
+            try:
+                # Esperar hasta 30 s que aparezca el modal de descarga
+                modal = WebDriverWait(self.driver, timeout).until(
+                    EC.visibility_of_element_located((By.XPATH, "//div[contains(@class,'modal-content')]"))
+                )
+                print("💬 Modal detectado. Intentando presionar 'Cancelar'...")
+
+                # Buscar el botón "Cancelar" dentro del modal
+                cancelar_btn = modal.find_element(
+                    By.XPATH, ".//button[contains(@class,'btn-outline-dark') and normalize-space()='Cancelar']"
+                )
+
+                time.sleep(0.3)  # por animación del modal
+                cancelar_btn.click()
+                print("✅ Se presionó 'Cancelar' correctamente.")
+                time.sleep(1)
+
+            except Exception:
+                # Si no aparece en 30 s o no se encuentra el modal
+                print("ℹ️ No apareció ningún modal de descarga, continuando con el flujo...")
         else:
             print("NO SE PUDO SELECCIONAR EL BOTON DE ENVIAR XC")

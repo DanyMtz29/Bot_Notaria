@@ -1,3 +1,5 @@
+
+
 # bot/main.py
 import os, typer, time, json
 
@@ -241,6 +243,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
 
     procesamiento_papeleria(driver, docs.list_all_required_descriptions(), docs, clientes, inmuebles)
     guardar_papeleria_JSON(ruta)
+    comentarios_tab = comentariosTab(driver,wait)
     if lista_comentarios:
         for tup, lis in lista_comentarios.items():
             comentarios = ["Falta papeleria del "]
@@ -252,11 +255,12 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
                 comentarios.append(f"{i+1}.-{lis[i]}. ")
             comentarios.append("\n")
             comentario_subir = "".join(comentarios)
-            comentarios_tab = comentariosTab(driver,wait)
             comentarios_tab.open_tap_comentarios()
             comentarios_tab.agregar_comentario(comentario_subir)
             comentarios_tab.enviar_comentario()
             time.sleep(1)
+        comentarios_tab.guardar_proyecto()
+    else:
         comentarios_tab.guardar_proyecto()
     # print("PAPELERIA FALTANTE")
     # for tup, lis in lista_comentarios.items():
@@ -296,33 +300,12 @@ def guardar_papeleria_JSON(ruta: str):
 
     print(f"✅ Papelería guardada con fecha en: {ruta}")
 
-# Pipeline
-# =========================
-def _pipeline(headless: bool):
-    #Variables globales
-    
-    # send_email(
-    #     to="danieljm2901@gmail.com",
-    #     subject="HOLA DANIEL!!",
-    #     body_html="<h1>ESTIMADO QUERIDO AMIGO:</h1><p>Sientase orgulloso de la vida.</p>",
-    #     body_text="Es un dia maravilloso para estar en cama."
-    # )
-
-    #return
-
+def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
+    """
+        Proceso que  recorre el portal por todos los proyectos de cada abogado
+    """
     global js, actos_folder, lista_uifs
-
-    load_dotenv("bot/config/.env")
-
-    url = os.getenv("PORTAL_URL", "")
-    user = os.getenv("PORTAL_USER", "")
-    pwd  = os.getenv("PORTAL_PASS", "")
-    actos_root = os.getenv("LOCAL_ACTOS_ROOT", "")
-
-    if not (url and user and pwd and actos_root):
-        logger.error("Faltan PORTAL_URL/USER/PASS y/o ACTOS_ROOT en .env")
-        raise typer.Exit(code=2)
-
+    
     driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=20)
 
     try:
@@ -330,6 +313,7 @@ def _pipeline(headless: bool):
         LoginPage(driver, wait).login(url, user, pwd)
         DashboardPage(driver, wait).assert_loaded()
         logger.info("Login OK")
+
 
         # 2) Buscar primer acto sin cache
         target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)
@@ -408,6 +392,36 @@ def _pipeline(headless: bool):
         input("INTRODUCE: ")
         pass
         # driver.quit()
+
+# Pipeline
+# =========================
+def _pipeline(headless: bool):
+    #Variables globales
+    
+    # send_email(
+    #     to="danieljm2901@gmail.com",
+    #     subject="HOLA DANIEL!!",
+    #     body_html="<h1>ESTIMADO QUERIDO AMIGO:</h1><p>Sientase orgulloso de la vida.</p>",
+    #     body_text="Es un dia maravilloso para estar en cama."
+    # )
+
+    #return
+
+    load_dotenv("bot/config/.env")
+
+    url = os.getenv("PORTAL_URL", "")
+    user = os.getenv("PORTAL_USER", "")
+    pwd  = os.getenv("PORTAL_PASS", "")
+    actos_root = os.getenv("LOCAL_ACTOS_ROOT", "")
+
+    if not (url and user and pwd and actos_root):
+        logger.error("Faltan PORTAL_URL/USER/PASS y/o ACTOS_ROOT en .env")
+        raise typer.Exit(code=2)
+
+    for name in os.listdir(actos_root):
+          proceso_por_abogado(headless,name,os.path.abspath(os.path.join(actos_root,name)), url,user,pwd)
+
+    
 
 # =========================
 # CLI

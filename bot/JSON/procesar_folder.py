@@ -13,6 +13,7 @@ from bot.pages.customer_detail_page import CustomerDetailPage
 from bot.pages.customers_cif_modal import CustomersCifModal
 from bot.pages.customers_create_confirm_modal import CustomersCreateConfirmModal
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 
 class Folder:
@@ -228,6 +229,35 @@ class Folder:
     # =========================
     # Flujo por PARTE
     # =========================
+
+    def buscar_cliente(self,driver,wait, nombre_cliente):
+        """
+            Metodo para colocar el nombre del cliente y buscarlo en la caja de texto
+        """
+        xpath = "//input[@placeholder='Buscar por Nombre, Razón Social, Email, o RFC...']"
+        wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+        inp_cliente = driver.find_element(By.XPATH, xpath)
+        inp_cliente.send_keys(Keys.CONTROL, "a")
+        inp_cliente.send_keys(Keys.DELETE)
+        inp_cliente.send_keys(nombre_cliente)
+        time.sleep(1)
+        inp_cliente.send_keys(Keys.ENTER)
+        self.click_cliente(driver,wait)
+        
+    def click_cliente(self,driver,wait):
+        filas = driver.find_elements(By.XPATH, "//tr[@role='row']")
+        sz = len(filas)
+        while sz > 3:
+            filas = driver.find_elements(By.XPATH, "//tr[@role='row']")
+            sz = len(filas)
+            print(sz)
+        xpath = "//tr//td//a//i[contains(@class, 'fa-search')]"
+        wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+        lupita = driver.find_element(By.XPATH, xpath)
+        lupita.click()
+        time.sleep(5)
+        
+
     def _process_party(self,lista_uifs:list,driver, wait, base: str, party: Dict[str, str]) -> None:
         """
         Para una parte:
@@ -240,7 +270,11 @@ class Folder:
         cp.assert_loaded()
 
         logger.info(f"[{party.get('tipo')}/{party.get('rol') or '-'}] Buscando en Clientes: {party['nombre_upper']}")
+
         found = cp.search_by_name(party["nombre_upper"], timeout=12)
+
+        # name = party["nombre_upper"]
+        # self.buscar_cliente(driver,wait,name)
 
         if found:
             logger.success("Cliente EXISTE en consola")
