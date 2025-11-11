@@ -96,10 +96,10 @@ def subir_doc_partes_basicas(driver, clientes: list, doc: str) -> None:
     elif doc == "Acta de nacimiento (compareciente o partes)": doc = "ACTA_NAC"
     elif doc == "Constancia de identificación fiscal (compareciente o partes)": doc = "CSF"
     elif doc == "CURP (compareciente o partes)": doc = "CURP"
+    elif doc == "Acta de matrimonio (compareciente o partes)": doc = "ACTA_MATRIMONIO"
 
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
     flag = True
-    wait = WebDriverWait(driver, 20)
     for part in clientes:
         if part.get("tipo") == "PF":
             #Primero chechar si no esta en importados
@@ -109,7 +109,7 @@ def subir_doc_partes_basicas(driver, clientes: list, doc: str) -> None:
                 docs = part.get("docs")
                 doc_up = docs.get(doc)
                 if doc_up == None:
-                    if not doc == "COMP_DOMICILIO":
+                    if not doc == "COMP_DOMICILIO" and doc == "ACTA_MATRIMONIO":
                         #add_coment(part.get("nombre"), doc_original)
                         tup = ("PF",part.get("nombre"), part.get('rol'))
                         if tup in lista_comentarios:
@@ -148,31 +148,91 @@ def add_coment(cliente: str, doc_faltante: str) -> None:
     #Agregar lo faltante
     js.list_append("faltantes", {"cliente": cliente, "doc": doc_faltante})
 
-def checar_docs_importar(driver,cliente: str, doc:str) -> bool:
-    #Seleccionar el boton de importar
-    but = driver.find_element(By.XPATH,f"//div[@class='col-md-10']//div[@class='text-end']//button[@type='button']")
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
+
+def checar_docs_importar(driver, cliente: str, doc: str) -> bool:
+    wait = WebDriverWait(driver, 20)
+
+    # Click en "Importar" (usa wait + JS por si hay overlay)
+    but = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@class='col-md-10']//div[@class='text-end']//button[@type='button']")))
     driver.execute_script("arguments[0].click();", but)
 
-    #tables = driver.find_elements(By.XPATH, "//div[@class='modal-body']//div[@class='form-group']")
-    #Obtener las tablas
-    if doc == "Acta de nacimiento (compareciente o partes)": doc = "nacimiento"
-    elif doc == "Comprobante de Domicilio (compareciente o partes)": doc = "Domicilio"
-    elif doc == "Constancia de identificación fiscal (compareciente o partes)": doc = "fiscal"
+    # Normalizar nombre de doc a tus keywords usadas en la tabla
+    mapping = {
+        "Acta de nacimiento (compareciente o partes)": "nacimiento",
+        "Comprobante de Domicilio (compareciente o partes)": "Domicilio",
+        "Constancia de identificación fiscal (compareciente o partes)": "fiscal",
+    }
+    doc = mapping.get(doc, doc)
 
-    modal_body = driver.find_element(By.XPATH, ".//div[contains(@class,'modal-body')]")
-    table = modal_body.find_element(By.XPATH,f".//div[contains(@class, 'form-group') and contains(@class, 'row')][.//label[normalize-space(text())='{cliente}']]")
-    row = table.find_element(By.XPATH, ".//tbody[contains(@role,'rowgroup')]")
-    docs_ = row.find_elements(By.XPATH, f".//tr[.//td[contains(., '{doc}')]]")
-    si_hay = len(docs_)>0
-    if si_hay:
-        last = docs_[-1]
-        sub = last.find_element(By.XPATH, "./td[1]//input[@type='checkbox']")
-        sub.click()
-        
-    time.sleep(1) 
-    but_seleccionar = driver.find_element(By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space(text())='Regresar']")
-    driver.execute_script("arguments[0].click();", but_seleccionar)
-    return si_hay
+    # Espera a que el modal esté visible
+    modal_body = wait.until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class,'modal-body')]")))
+
+    # Ubica el bloque (tabla) del cliente
+    table = modal_body.find_element(
+        By.XPATH,
+        f".//div[contains(@class, 'form-group') and contains(@class, 'row')][.//label[normalize-space(text())='{cliente}']]"
+    )
+
+    # Dentro de la tabla, la sección de filas
+    rowgroup = table.find_element(By.XPATH, ".//tbody[contains(@role,'rowgroup')]")
+
+    # Locator para todas las filas que contengan el doc (case-insensitive robusto)
+    # Nota: usamos contains(., '{doc}') directo; si necesitas 100% insensible a may/min, podemos meter translate().
+    rows_locator = (
+        By.XPATH,
+        f".//tr[.//td[contains(., '{doc}')]]"
+    )
+
+    # Espera a que existan (o determina que no hay)
+    docs_ = rowgroup.find_elements(*rows_locator)
+    si_hay = len(docs_) > 0
+    if not si_hay:
+        # Cierra el modal y salimos
+        cerrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space()='Regresar']")))
+        driver.execute_script("arguments[0].click();", cerrar)
+        return False
+
+    # Función para reobtener el último row fresco
+    def refetch_last_row():
+        rows = rowgroup.find_elements(*rows_locator)
+        if not rows:
+            raise TimeoutException("La fila ya no está disponible")
+        return rows[-1]
+
+    # Intenta clickear el checkbox del último row, tolerando 'stale'
+    attempts = 2
+    for i in range(attempts):
+        try:
+            last = refetch_last_row()
+            # (Opcional) imprime para depurar
+            try:
+                print(last.text)
+            except StaleElementReferenceException:
+                # Si incluso leer el texto truena, reintenta completo
+                if i == attempts - 1:
+                    raise
+                continue
+
+            cb = last.find_element(By.XPATH, ".//td[1]//input[@type='checkbox']")
+            wait.until(EC.element_to_be_clickable(cb))
+            driver.execute_script("arguments[0].click();", cb)
+            break
+        except StaleElementReferenceException:
+            if i == attempts - 1:
+                raise  # ya no reintentes
+            # pequeño backoff opcional:
+            # time.sleep(0.2)
+            continue
+
+    # Cierra el modal
+    cerrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space()='Regresar']")))
+    driver.execute_script("arguments[0].click();", cerrar)
+    return True
+
 
 def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmuebles: list) -> None:
     """
@@ -182,11 +242,12 @@ def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmue
                            "Aviso preventivo","Solicitud de Avalúo", "Plano"]
     papeleria_basica = ["Comprobante de Domicilio (compareciente o partes)", "Identificación oficial (compareciente o partes)",
                         "Constancia de identificación fiscal (compareciente o partes)", "Acta de nacimiento (compareciente o partes)",
-                        "CURP (compareciente o partes)"]
+                        "CURP (compareciente o partes)", "Acta de matrimonio (compareciente o partes)"]
     papeleria_sociedad = ["Acta constitutiva (antecedente)", "Poder del representante legal", "Asambleas antecedente de la sociedad",
                           "Constancia de identificación fiscal Sociedad"]
     papeleria_otros = ["Expediente judicial", "Forma ISAI Amarilla (Registro Publico)", "Recibo de pago ISAI",
-                       "Recibo de pago Derechos de Registro"]
+                       "Recibo de pago Derechos de Registro", "Acta de nacimiento del cónyuge", "Identificación oficial del cónyuge",
+                       "Otros", "CURP del cónyuge", "Comprobante de Domicilio del cónyuge"]
     
     for doc in documents:
         print(f"DOC PROCESANDO: {doc}")
@@ -226,16 +287,24 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     for cl in pm_list:
         clientes.append(cl)
     
+    time.sleep(1)
     #"""
     partes = partesTap(driver, wait)
     for cl in pf_list:
+        nombre = cl.get("nombre", "")
+        rol    = cl.get("rol", "").upper()
+        print(f"Procesando: {nombre}, rol {rol}")
+        if partes.existe_cliente_y_rol(nombre,rol):
+            continue
         partes.agregar()
-        partes.set_cliente(cl.get("nombre"))
-        partes.set_rol(cl.get("rol").upper())
+        partes.set_cliente(nombre)
+        partes.set_rol(rol)
+        if (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
+                                    } and rol.strip().lower() == "comprador" and partes.existe_cliente_y_rol("", "Comprador")):
+            partes.set_porcentaje(50)
         partes.guardar_parte()
-        time.sleep(1)
-        
     #"""
+    
     # #Apartado de documentos
     docs = ProjectsDocumentsPage(driver, wait)
     docs.open_documents_tab()
@@ -259,9 +328,11 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
             comentarios_tab.agregar_comentario(comentario_subir)
             comentarios_tab.enviar_comentario()
             time.sleep(1)
-        comentarios_tab.guardar_proyecto()
+        #comentarios_tab.guardar_proyecto()
+        print("GUARDAR PROYECTO...")
     else:
-        comentarios_tab.guardar_proyecto()
+        #comentarios_tab.guardar_proyecto()
+        print("GUARDAR PROYECTO...")
     # print("PAPELERIA FALTANTE")
     # for tup, lis in lista_comentarios.items():
     #     if tup[0] == "PF":
@@ -313,7 +384,6 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
         LoginPage(driver, wait).login(url, user, pwd)
         DashboardPage(driver, wait).assert_loaded()
         logger.info("Login OK")
-
 
         # 2) Buscar primer acto sin cache
         target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)
