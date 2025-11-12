@@ -249,26 +249,34 @@ class ActoResolver:
         right = parts[2].strip() if len(parts) >= 3 else None
         return left, middle, right
 
-    def _extraer_escritura_y_titulo(self, left: str) -> Tuple[Optional[int], str]:
+    def _extraer_escritura_y_titulo(self, left: str):
         """
-        Si left inicia con numero => escritura=numero y se recorta del título.
-        Si inicia con 'Esc.'/'ESC'/'Escritura' => escritura=None, recorta prefijo textual.
-        Retorna (escritura, titulo_candidato)
-        """
-        s = left.strip()
-        # numero inicial
-        m = re.match(r"^\s*(\d{1,10})\s+(.*)$", s)
-        if m:
-            num = int(m.group(1))
-            titulo = m.group(2).strip()
-            return num, titulo
+        Extrae el número de escritura (si existe) y limpia el título del nombre de carpeta.
 
-        # prefijos textuales a ignorar
-        s_norm = _norm(s)
-        if s_norm.startswith("esc ") or s_norm.startswith("esc.") or s_norm.startswith("escritura "):
-            # quita el primer token (esc | esc. | escritura)
-            s2 = re.sub(r"^\s*(esc\.?|escritura)\s+", "", _strip_acc(s), flags=re.I).strip()
-            return None, s2 or s
+        Ejemplos válidos:
+            '123.- Adjudicacion'      -> (123, 'Adjudicacion')
+            '04.- Compraventa'        -> (4, 'Compraventa')
+            '30.- Carta permiso'      -> (30, 'Carta permiso')
+            'Esc.- Adjudicacion'      -> (None, 'Adjudicacion')
+            'ESC.- Compraventa'       -> (None, 'Compraventa')
+            'Escritura.- Testamento'  -> (None, 'Testamento')
+        """
+
+        s = (left or "").strip()
+
+        # Caso: número inicial (ej. 123.- Compraventa)
+        m = re.match(r"^\s*(\d{1,10})\s*[\.\-]*\s*(.*\S)\s*$", s)
+        if m:
+            return int(m.group(1)), m.group(2).strip()
+
+        # Caso: prefijos textuales tipo Esc, ESC, Escritura (ej. Esc.- Adjudicacion)
+        m = re.match(
+            r"^\s*(?:esc(?:\.|ritura)?|escritura)\s*[\.\-]*\s*(.*\S)\s*$",
+            s,
+            flags=re.IGNORECASE
+        )
+        if m:
+            return None, m.group(1).strip()
 
         return None, s
 

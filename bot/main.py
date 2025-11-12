@@ -1,7 +1,7 @@
 
 
 # bot/main.py
-import os, typer, time, json
+import os, typer, time, json, re
 
 from collections import OrderedDict
 from datetime import datetime
@@ -19,6 +19,7 @@ from bot.pages.Proyectos.tap_general import generalTap
 from bot.core.acto_scanner import scan_acto_folder
 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
 from bot.JSON.procesar_folder import Folder
 from bot.core.json_file import json_file
@@ -101,31 +102,34 @@ def subir_doc_partes_basicas(driver, clientes: list, doc: str) -> None:
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
     flag = True
     for part in clientes:
-        if part.get("tipo") == "PF":
+        if part.get("tipo") == "PM":
+            part = part.get("representante", {})
+#        if part.get("tipo") == "PF":
             #Primero chechar si no esta en importados
-            if checar_docs_importar(driver, part.get("nombre"), doc_original):
-                time.sleep(1)
+        if checar_docs_importar(driver, part.get("nombre"), doc_original):
+            time.sleep(1)
+        else:
+            docs = part.get("docs")
+            doc_up = docs.get(doc)
+            if doc_up == None:
+                if not doc == "COMP_DOMICILIO" and doc == "ACTA_MATRIMONIO":
+                    #add_coment(part.get("nombre"), doc_original)
+                    tup = ("PF",part.get("nombre"), part.get('rol'))
+                    if tup in lista_comentarios:
+                        lista_comentarios[tup].append(doc_original)
+                    else:
+                        lista_comentarios[tup] = [doc_original]
+                    flag = False
             else:
-                docs = part.get("docs")
-                doc_up = docs.get(doc)
-                if doc_up == None:
-                    if not doc == "COMP_DOMICILIO" and doc == "ACTA_MATRIMONIO":
-                        #add_coment(part.get("nombre"), doc_original)
-                        tup = ("PF",part.get("nombre"), part.get('rol'))
-                        if tup in lista_comentarios:
-                            lista_comentarios[tup].append(doc_original)
-                        else:
-                            lista_comentarios[tup] = [doc_original]
-                        flag = False
-                else:
-                    inp.send_keys(doc_up)
-                    esperar_subida(driver)
-                    filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
-                    fila = filas[-1]
-                    Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
-                    Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
-                    driver.execute_script("arguments[0].value = '';", inp)
-                    time.sleep(1)
+                inp.send_keys(doc_up)
+                esperar_subida(driver)
+                filas = driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
+                fila = filas[-1]
+                Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
+                Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
+                driver.execute_script("arguments[0].value = '';", inp)
+                time.sleep(1)
+            
     return flag
         
 def esperar_subida(driver):
@@ -277,7 +281,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     pp.create_project(
         abogado="BOT SINGRAFOS BOTBI",
         cliente=cliente_principal,
-        descripcion=("\"PRUEBA BOTBI\"" + descripcion),
+        descripcion=("\"PRUEBAS BOTBI\" " + descripcion),
         acto=acto_nombre
     )
     #"""
@@ -311,7 +315,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     time.sleep(2)
 
     procesamiento_papeleria(driver, docs.list_all_required_descriptions(), docs, clientes, inmuebles)
-    guardar_papeleria_JSON(ruta)
+    guardar_papeleria_JSON(ruta, "\"PRUEBAS BOTBI\" " + descripcion)
     comentarios_tab = comentariosTab(driver,wait)
     if lista_comentarios:
         for tup, lis in lista_comentarios.items():
@@ -328,11 +332,12 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
             comentarios_tab.agregar_comentario(comentario_subir)
             comentarios_tab.enviar_comentario()
             time.sleep(1)
-        #comentarios_tab.guardar_proyecto()
-        print("GUARDAR PROYECTO...")
+        comentarios_tab.guardar_proyecto()
+        print("GUARDANDO PROYECTO...")
     else:
-        #comentarios_tab.guardar_proyecto()
-        print("GUARDAR PROYECTO...")
+        comentarios_tab.guardar_proyecto()
+        print("GUARDANDO PROYECTO...")
+        #print("GUARDAR PROYECTO...")
     # print("PAPELERIA FALTANTE")
     # for tup, lis in lista_comentarios.items():
     #     if tup[0] == "PF":
@@ -343,7 +348,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     #         print(f"{i+1}. {lis[i]}")
     #     print("\n")
 
-def guardar_papeleria_JSON(ruta: str):
+def guardar_papeleria_JSON(ruta: str, descripcion: str):
     """
     Guarda en JSON con estructura:
     {
@@ -361,6 +366,8 @@ def guardar_papeleria_JSON(ruta: str):
     # Agregar la fecha primero
     data_ordenada["Fecha de registro"] = datetime.now().isoformat(timespec="seconds")
 
+    data_ordenada["Descripcion del proyecto"] = descripcion
+
     # Agregar el resto (con llaves de tupla convertidas a string)
     for k, v in lista_comentarios.items():
         data_ordenada[str(k)] = v
@@ -369,7 +376,74 @@ def guardar_papeleria_JSON(ruta: str):
     with open(ruta, "w", encoding="utf-8") as f:
         json.dump(data_ordenada, f, indent=4, ensure_ascii=False)
 
-    print(f"✅ Papelería guardada con fecha en: {ruta}")
+    print(f"Papelería guardada con fecha en: {ruta}")
+
+def quitar_estatus(driver, wait)-> None:
+    try:
+        estatus = wait.until(
+            EC.presence_of_element_located((
+                By.XPATH,
+                "//span[contains(@class,'badge') and contains(@class,'text-bg-light') and "
+                "contains(normalize-space(.), 'Estatus: En Revisión')]"
+            ))
+        )
+        print("Elemento de estatus detectado:", estatus.text)
+    except Exception as e:
+        print(f"No se encontró el elemento de estatus: {e}")
+
+def modificar_proyecto(driver,wait,descripcion:str, archivos_para_subir,url) -> None:
+    """
+        Metodo para modificar un proyecto y subir los archivos faltantes
+    """
+    # Abrir dashboard
+    try:
+        full_url = url.rstrip("/") + "/projects"
+        driver.get(full_url)
+        print(f"Abriendo dashboard: {full_url}")
+
+        # Esperar que cargue el dashboard
+        wait.until(EC.url_contains("/projects"))
+        print("Dashboard cargado correctamente.")
+    except Exception as e:
+        print(f"Error al cargar el dashboard: {e}")
+        return
+    ###
+    # Esperar campo de búsqueda por placeholder
+    try:
+        input_buscar = wait.until(EC.visibility_of_element_located((By.XPATH,"//input[contains(@placeholder,'Buscar por Folio, Descripción, Cliente, o Abogado...')]")))
+
+        # Asegurar que también esté interactuable
+        wait.until(EC.element_to_be_clickable((By.XPATH,"//input[contains(@placeholder,'Buscar por Folio, Descripción, Cliente, o Abogado...')]")))
+
+        # Limpiar la descripción
+        descripcion = re.sub(r"[-–—]+", " ", descripcion).strip()
+        descripcion = re.sub(r"[\"“”']", "", descripcion).strip()
+
+        # Escribir y presionar ENTER
+        input_buscar.clear()
+        input_buscar.send_keys(descripcion)
+        input_buscar.send_keys(Keys.ENTER)
+        print("✅ Campo de búsqueda detectado y texto enviado correctamente.")
+        time.sleep(2)  # pequeño delay para que cargue la tabla posterior
+    except Exception as e:
+        print(f"No se detectó el campo de búsqueda: {e}")
+        return
+    
+    lupa = wait.until(EC.element_to_be_clickable((By.XPATH,"//table//i[contains(@class,'fa-search')]/ancestor::a[contains(@class,'btn-light')]")))
+    driver.execute_script("arguments[0].click();", lupa)
+    #driver.execute_script("arguments[0].style.border='3px solid red'", lupa)
+
+    try:
+        boton_modificar = wait.until(EC.element_to_be_clickable((By.XPATH,"//a[contains(@class,'btn-primary') and contains(@href,'/projects/edit')]")))
+        driver.execute_script("arguments[0].click();", boton_modificar)
+        print(" Botón 'Modificar' presionado correctamente.")
+    except Exception as e:
+        print(f" No se pudo presionar el botón 'Modificar': {e}")
+
+    #Ir a parte de documentos
+    docs = ProjectsDocumentsPage(driver, wait)
+    docs.open_documents_tab()
+
 
 def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
     """
@@ -377,7 +451,7 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
     """
     global js, actos_folder, lista_uifs
     
-    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=20)
+    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
 
     try:
         #1) Login
@@ -393,7 +467,7 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
             #logger.warning("NO TIENE CACHE")
         else:
             logger.warning("YA TIENE CACHE")
-            archivos_para_subir, json_actualizado = FaltantesService.procesar_proyecto(target_acto)
+            descripcion, archivos_para_subir, json_actualizado = FaltantesService.procesar_proyecto(target_acto)
             # archivos_para_subir: { key_str : [(nombre_doc, ruta_abs), ...] }
             for key, pairs in archivos_para_subir.items():
                 for nombre_doc, ruta in pairs:
@@ -401,18 +475,25 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
                     # aquí usas tu flujo Selenium para subir 'ruta' y etiquetarlo como 'nombre_doc'
                     print("Subir:", nombre_doc, "->", ruta)
 
+            if len(archivos_para_subir) > 0:
+                cur = driver.current_url
+                base = actos_folder._origin_of(cur)
+                modificar_proyecto(driver,wait,descripcion, archivos_para_subir,base)
+
             # Si json_actualizado sólo tiene "Fecha de registro", ya está completo.
-            if list(json_actualizado.keys()) == ["Fecha de registro"]:
-                print("✅ Proyecto completo. Sin faltantes.")
+            if list(json_actualizado.keys()) == [["Fecha de registro"],["Descripcion del proyecto"]]:
+                print("Proyecto completo. Sin faltantes.")
             else:
                 print("Aun faltan archivos!!")
-        
+            return
         
         resolver = ActoResolver()
         left, middle, right = resolver._split_por_guiones(os.path.basename(target_acto))
         _, titulo = resolver._extraer_escritura_y_titulo(left)
+        #print(f"Titulo: {titulo}, Middle: {middle}, Right: {right}, _: {_}")
         descripcion = " – ".join(filter(None, [titulo, middle, right]))
-
+        #print(f"Descripcion: {descripcion}")
+        
         # 3) Escanear y guardar JSON
         extraction = scan_acto_folder(target_acto, acto_nombre=os.path.basename(target_acto))
         json_path = actos_folder._ensure_cache_and_write_json(target_acto, extraction)
@@ -438,7 +519,7 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
         #"""
         # 5) Ir a Clientes y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
-        base = actos_folder._origin_of(cur) 
+        base = actos_folder._origin_of(cur)
 
         all_parties = actos_folder._flatten_all_parties(acto_ctx["pf"], acto_ctx["pm"])
         if not all_parties:
@@ -449,6 +530,8 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
         for idx, party in enumerate(all_parties, start=1):
             logger.info(f"===== PARTE {idx}/{len(all_parties)} :: {party.get('tipo')} | {party.get('rol') or '-'} | {party.get('nombre_upper')} =====")
             try:
+                if party.get('tipo') == "PM":
+                    actos_folder._process_party(lista_uifs, driver, wait, base, party.get("representante"))
                 actos_folder._process_party(lista_uifs, driver, wait, base, party)
             except Exception as e:
                 logger.exception(f"Error procesando parte [{party.get('nombre_upper')}]: {e}")
@@ -490,7 +573,6 @@ def _pipeline(headless: bool):
 
     for name in os.listdir(actos_root):
           proceso_por_abogado(headless,name,os.path.abspath(os.path.join(actos_root,name)), url,user,pwd)
-
     
 
 # =========================
@@ -517,3 +599,13 @@ def run(
 
 if __name__ == "__main__":
     app()
+"""
+{
+    "Fecha de registro": "2025-11-11T08:30:45",
+    "Descripcion del proyecto": "\"PRUEBAS BOTBI\"123. Adjudicacion – Juan – INM 32",
+    "('INM', 'Inmueble 10_mz', 'INM')": [
+        "Recibo de pago del impuesto predial",
+        "Solicitud de Avalúo"
+    ]
+}
+"""

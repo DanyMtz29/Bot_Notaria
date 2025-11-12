@@ -17,3 +17,6 @@ logs/
 /Lib
 /Scripts
 *.cfg
+
+#Lo que el bot genera:
+_cache_bot/

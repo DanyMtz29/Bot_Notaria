@@ -71,7 +71,7 @@ class partesTap(BasePage):
         inp.send_keys(Keys.ENTER)
         time.sleep(1)
 
-    def guardar_parte(self, timeout: int = 25) -> bool:
+    def guardar_parte(self, timeout: int = 10) -> bool:
         """
         Espera a que el botón 'Guardar' sea clickeable (distintas variantes),
         hace scroll y clic (normal o por JS) y valida una post-condición

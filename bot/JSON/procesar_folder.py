@@ -269,7 +269,7 @@ class Folder:
         cp.open_direct(base)
         cp.assert_loaded()
 
-        logger.info(f"[{party.get('tipo')}/{party.get('rol') or '-'}] Buscando en Clientes: {party['nombre_upper']}")
+        logger.info(f"Buscando en Clientes: {party['nombre_upper']}")
 
         found = cp.search_by_name(party["nombre_upper"], timeout=12)
 

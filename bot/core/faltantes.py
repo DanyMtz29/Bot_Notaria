@@ -110,8 +110,11 @@ class FaltantesService:
             logger.info("JSON fuera de ventana (15 días) o sin fecha. Se regresa intacto.")
             return {}, data
 
+        descripcion = data.get("Descripcion del proyecto")
+
         archivos_para_subir: Dict[str, List[Tuple[str, str]]] = {}
         nuevo_data: dict = {"Fecha de registro": fecha}
+        nuevo_data["Descripcion del proyecto"] = descripcion
 
         for k, faltantes in data.items():
             if k == "Fecha de registro":
@@ -143,7 +146,7 @@ class FaltantesService:
                 nuevo_data[k] = still_missing
 
         cls._guardar_json_faltantes(cache_dir, nuevo_data)
-        return archivos_para_subir, nuevo_data
+        return descripcion, archivos_para_subir, nuevo_data
 
     # =====================================================================
     # -------------------------- UTIL DE ARCHIVO ---------------------------
