@@ -1,8 +1,6 @@
 """
     TODO: Clase de moficicaciones, migrar metodos hacia esa clase
 """
-
-
 # bot/main.py
 import os, typer, time, json, re
 from collections import Counter
@@ -33,6 +31,7 @@ from bot.core.browser import make_driver
 from bot.pages.dashboard_page import DashboardPage
 from bot.pages.login_page import LoginPage
 from bot.core.acto_detector import ActoResolver
+from bot.pages.Proyectos.docs_modify import tapModify
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -315,7 +314,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     
     # #Apartado de documentos
     docs = ProjectsDocumentsPage(driver, wait)
-    docs.open_documents_tab()
+    docs.open_documents_tap()
     time.sleep(2)
 
     procesamiento_papeleria(driver, docs.list_all_required_descriptions(), docs, clientes, inmuebles)
@@ -400,26 +399,16 @@ def quitar_estatus(driver, wait)-> None:
     except Exception as e:
         print(f"No se encontró el elemento de estatus: {e}")
 
-def modificar_proyecto(driver,wait,descripcion:str, archivos_para_subir,url) -> None:
+def modificar_proyecto(driver,wait,descripcion:str, archivos_para_subir,url, contadores) -> None:
     """
         Metodo para modificar un proyecto y subir los archivos faltantes
     """
-    # Abrir dashboard
-    try:
-        full_url = url.rstrip("/") + "/projects"
-        driver.get(full_url)
-        print(f"Abriendo dashboard: {full_url}")
-
-        # Esperar que cargue el dashboard
-        wait.until(EC.url_contains("/projects"))
-        print("Dashboard cargado correctamente.")
-    except Exception as e:
-        print(f"Error al cargar el dashboard: {e}")
-        return
-
-    #Ir a parte de documentos
-    docs = ProjectsDocumentsPage(driver, wait)
-    docs.open_documents_tab()
+    modify = tapModify(driver, wait)
+    modify.open_url_projects(url)
+    modify.buscarNombreProyecto(descripcion)
+    modify.presionar_lupa_nombre()
+    modify.presionar_modificar_proyecto()
+    modify.open_documents_tap()
 
 
 def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
@@ -428,13 +417,13 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
     """
     global js, actos_folder, lista_uifs
     
-    #driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
+    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
 
     try:
         #1) Login
-        # LoginPage(driver, wait).login(url, user, pwd)
-        # DashboardPage(driver, wait).assert_loaded()
-        # logger.info("Login OK")
+        LoginPage(driver, wait).login(url, user, pwd)
+        DashboardPage(driver, wait).assert_loaded()
+        logger.info("Login OK")
 
         # 2) Buscar primer acto sin cache
         target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)

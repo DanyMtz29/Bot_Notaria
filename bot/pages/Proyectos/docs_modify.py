@@ -1,3 +1,4 @@
+from __future__ import annotations
 import re, time
 from selenium.webdriver.common.keys import Keys
 from ..base_page import BasePage
@@ -5,7 +6,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 
 class tapModify(BasePage):
-    def buscarNombre(self):
+    def buscarNombreProyecto(self, descripcion):
         """
             Coloca el nombre en el input del dashboard del portal
         """
@@ -24,7 +25,7 @@ class tapModify(BasePage):
             input_buscar.clear()
             input_buscar.send_keys(descripcion)
             input_buscar.send_keys(Keys.ENTER)
-            print("✅ Campo de búsqueda detectado y texto enviado correctamente.")
+            print("Campo de búsqueda detectado y texto enviado correctamente.")
             time.sleep(2)
         except Exception as e:
             print(f"No se detectó el campo de búsqueda: {e}")
@@ -46,10 +47,3 @@ class tapModify(BasePage):
             print(" Botón 'Modificar' presionado correctamente.")
         except Exception as e:
             print(f" No se pudo presionar el botón 'Modificar': {e}")
-    
-    def abrir_pestaña_documentos(self):
-        """
-            Abre pestaña de documentos desde
-            la clase base
-        """
-        self.open_documents_tap()

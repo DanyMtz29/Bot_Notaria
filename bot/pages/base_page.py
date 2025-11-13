@@ -18,12 +18,33 @@ class BasePage:
         (By.ID, "ngb-nav-2"),
     ]
 
+    DOCUMENTS_ACTIVE_HINTS = [
+        (By.XPATH, "//a[contains(@class,'nav-link') and contains(.,'Documentos') and @aria-selected='true']"),
+        (By.XPATH, "//div[contains(@class,'tab-pane') and contains(@class,'active')]"
+                   "//button[contains(.,'Agregar')]"),
+        (By.XPATH, "//div[contains(@class,'tab-pane') and contains(@class,'active')]//table"),
+    ]
+
     def __init__(self, driver: WebDriver, wait: WebDriverWait):
         self.driver = driver
         self.wait = wait
 
     def open(self, url: str):
         self.driver.get(url)
+
+    def open_url_projects(self, url):
+        # Abrir projects
+        try:
+            full_url = url.rstrip("/") + "/projects"
+            self.driver.get(full_url)
+            print(f"Abriendo projects: {full_url}")
+
+            # Esperar que cargue el 'projects'
+            self.wait.until(EC.url_contains("/projects"))
+            print("projects cargado correctamente.")
+        except Exception as e:
+            print(f"Error al cargar el projects: {e}")
+            return
     
     def open_documents_tap(self):
         try:

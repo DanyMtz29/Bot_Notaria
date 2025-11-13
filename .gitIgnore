@@ -19,3 +19,4 @@ logs/
 *.cfg
 
 #Lo que el bot genera:
+bot/_cache_bot/

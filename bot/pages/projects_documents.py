@@ -14,22 +14,6 @@ class ProjectsDocumentsPage(BasePage):
     """
     Acciones relacionadas con la pestaña 'Documentos' del formulario de Proyecto.
     """
-
-    # --- NAV / TABS ---
-    DOCUMENTS_TAB = [
-        (By.XPATH, "//ul[contains(@role,'tablist') or contains(@class,'nav')]"
-                   "//a[contains(@class,'nav-link') and contains(.,'Documentos')]"),
-        (By.XPATH, "//*[self::a or self::button][contains(@role,'tab')][contains(.,'Documentos')]"),
-        (By.ID, "ngb-nav-2"),
-    ]
-
-    DOCUMENTS_ACTIVE_HINTS = [
-        (By.XPATH, "//a[contains(@class,'nav-link') and contains(.,'Documentos') and @aria-selected='true']"),
-        (By.XPATH, "//div[contains(@class,'tab-pane') and contains(@class,'active')]"
-                   "//button[contains(.,'Agregar')]"),
-        (By.XPATH, "//div[contains(@class,'tab-pane') and contains(@class,'active')]//table"),
-    ]
-
     # --- CONTENEDOR DEL GRID (SCROLL) Y TABLA ---
     GRID_SCROLL = [
         (By.CSS_SELECTOR, "div.tab-pane.active div.k-grid-content.k-virtual-content"),
@@ -68,34 +52,6 @@ class ProjectsDocumentsPage(BasePage):
         (By.XPATH, "//div[contains(@class,'tab-pane') and contains(@class,'active')]"
                 "//button[contains(.,'Importar Documentos')]"),
     ]
-
-    # ----------------------------------------------------------
-    # Navegar a la pestaña Documentos
-    def open_documents_tab(self) -> None:
-        try:
-            self.wait_for_app_ready(timeout=15)
-        except Exception:
-            pass
-
-        tab = self.find_first_fast(self.DOCUMENTS_TAB, per_try=2.0, visible=True)
-        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tab)
-        try:
-            tab.click()
-        except Exception:
-            self.js_click(tab)
-
-        def _tab_selected(_):
-            try:
-                return tab.get_attribute("aria-selected") == "true"
-            except StaleElementReferenceException:
-                return True
-
-        try:
-            self.wait.until(_tab_selected)
-        except Exception:
-            pass
-
-        self.find_first_fast(self.DOCUMENTS_ACTIVE_HINTS, per_try=2.0, visible=True)
 
     def click_agregar_documento(self):
         btn = self.find_first_fast(self.ADD_BUTTON, per_try=2.0, visible=True)
