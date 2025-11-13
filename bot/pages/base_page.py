@@ -5,17 +5,51 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 
 Locator = Tuple[str, str]
 
 class BasePage:
+
+    DOCUMENTS_TAB = [
+        (By.XPATH, "//ul[contains(@role,'tablist') or contains(@class,'nav')]"
+                   "//a[contains(@class,'nav-link') and contains(.,'Documentos')]"),
+        (By.XPATH, "//*[self::a or self::button][contains(@role,'tab')][contains(.,'Documentos')]"),
+        (By.ID, "ngb-nav-2"),
+    ]
+
     def __init__(self, driver: WebDriver, wait: WebDriverWait):
         self.driver = driver
         self.wait = wait
 
     def open(self, url: str):
         self.driver.get(url)
+    
+    def open_documents_tap(self):
+        try:
+            self.wait_for_app_ready(timeout=15)
+        except Exception:
+            pass
+
+        tab = self.find_first_fast(self.DOCUMENTS_TAB, per_try=2.0, visible=True)
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tab)
+        try:
+            tab.click()
+        except Exception:
+            self.js_click(tab)
+
+        def _tab_selected(_):
+            try:
+                return tab.get_attribute("aria-selected") == "true"
+            except StaleElementReferenceException:
+                return True
+
+        try:
+            self.wait.until(_tab_selected)
+        except Exception:
+            pass
+
+        self.find_first_fast(self.DOCUMENTS_ACTIVE_HINTS, per_try=2.0, visible=True)
 
     # === NUEVO: espera a que Angular termine de montar el DOM ===
     def wait_for_app_ready(self, timeout: int = 15):

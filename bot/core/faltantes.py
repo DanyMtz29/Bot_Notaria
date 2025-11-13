@@ -110,7 +110,9 @@ class FaltantesService:
             logger.info("JSON fuera de ventana (15 días) o sin fecha. Se regresa intacto.")
             return {}, data
 
-        descripcion = data.get("Descripcion del proyecto")
+        descripcion = data.get("Descripcion del proyecto","")
+        contadores_prev = data.get("Contadores",{})
+        contadores_new = contadores_prev.copy()
 
         archivos_para_subir: Dict[str, List[Tuple[str, str]]] = {}
         nuevo_data: dict = {"Fecha de registro": fecha}
@@ -138,15 +140,23 @@ class FaltantesService:
                 continue
 
             still_missing, encontrados = cls._check_docs_in_folder(entity_folder, faltantes)
-
+            #print(f"Contadores despues de check: {contadores}")
+            
             if encontrados:
                 archivos_para_subir[k] = [(n, ruta) for n, ruta in encontrados.items()]
+                #Para filtrar los encontrados en el JSON
+                for archivo_portal in encontrados.keys():
+                    contadores_new[archivo_portal]-=1
+                    if contadores_new[archivo_portal] == 0: del contadores_new[archivo_portal]
 
             if still_missing:
                 nuevo_data[k] = still_missing
+        #Se guarda la nueva data si se actualizo
+        if contadores_new:
+            nuevo_data["Contadores"] = contadores_new
 
         cls._guardar_json_faltantes(cache_dir, nuevo_data)
-        return descripcion, archivos_para_subir, nuevo_data
+        return descripcion, archivos_para_subir, contadores_prev, nuevo_data
 
     # =====================================================================
     # -------------------------- UTIL DE ARCHIVO ---------------------------
@@ -322,7 +332,13 @@ class FaltantesService:
         return None
 
     @classmethod
-    def _check_docs_in_folder(cls, folder: str, nombres_docs: List[str]) -> Tuple[List[str], Dict[str, str]]:
+    def _check_docs_in_folder(cls, folder: str, nombres_docs: List[str]) -> Tuple[List[str], Dict[str, str], Dict[str, int]]:
+        """
+        Devuelve:
+            still_missing -> lista de nombres que aún faltan
+            encontrados -> {nombre_doc: ruta}
+            contadores -> {nombre_doc: faltantes_restantes}
+        """
         still_missing: List[str] = []
         encontrados: Dict[str, str] = {}
 
@@ -335,11 +351,10 @@ class FaltantesService:
             if checker:
                 try:
                     ruta = checker(folder)
-                except Exception as e:
-                    logger.debug("Detector falló en {} para {}: {}", folder, key, e)
+                except Exception:
                     ruta = None
 
-            # 2) Fallback por patrón de nombre de archivo
+            # 2) Fallback por nombre
             if not ruta:
                 ruta = cls._fallback_find_by_pattern(folder, key)
 
@@ -347,5 +362,6 @@ class FaltantesService:
                 encontrados[key] = ruta
             else:
                 still_missing.append(doc_name)
+
 
         return still_missing, encontrados

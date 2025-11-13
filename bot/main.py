@@ -1,7 +1,11 @@
+"""
+    TODO: Clase de moficicaciones, migrar metodos hacia esa clase
+"""
 
 
 # bot/main.py
 import os, typer, time, json, re
+from collections import Counter
 
 from collections import OrderedDict
 from datetime import datetime
@@ -41,8 +45,8 @@ def subir_lista_uifs(driver) -> None:
     inp = driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
 
     #Listas_uifs de prueba
-    # lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
-    #               ["UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf"]]
+    lista_uifs = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
+                  ["UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf"]]
     
     for uif in lista_uifs:
         inp.send_keys(uif[1])
@@ -332,10 +336,10 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
             comentarios_tab.agregar_comentario(comentario_subir)
             comentarios_tab.enviar_comentario()
             time.sleep(1)
-        comentarios_tab.guardar_proyecto()
+        #comentarios_tab.guardar_proyecto()
         print("GUARDANDO PROYECTO...")
     else:
-        comentarios_tab.guardar_proyecto()
+        #comentarios_tab.guardar_proyecto()
         print("GUARDANDO PROYECTO...")
         #print("GUARDAR PROYECTO...")
     # print("PAPELERIA FALTANTE")
@@ -350,33 +354,38 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
 
 def guardar_papeleria_JSON(ruta: str, descripcion: str):
     """
-    Guarda en JSON con estructura:
+    Guarda en JSON con estructura extendida:
     {
         "Fecha de registro": "YYYY-MM-DDTHH:MM:SS",
-        "('Tipo', 'Nombre', 'Rol')": [faltantes],
-        ...
+        "Descripcion del proyecto": "...",
+        "('Tipo','Nombre','Rol')": [faltantes],
+        "Contadores": {
+            "Plano": 3,
+            "Solicitud de Avalúo": 2,
+            "CURP (Compareciente o partes)": 2
+        }
     }
     """
-    print(ruta)
     ruta = os.path.join(ruta, "papeleria_faltante.json")
-
-    # Crear un OrderedDict para mantener la fecha primero
     data_ordenada = OrderedDict()
-
-    # Agregar la fecha primero
     data_ordenada["Fecha de registro"] = datetime.now().isoformat(timespec="seconds")
-
     data_ordenada["Descripcion del proyecto"] = descripcion
 
-    # Agregar el resto (con llaves de tupla convertidas a string)
+    # Guardar faltantes por cada parte
     for k, v in lista_comentarios.items():
         data_ordenada[str(k)] = v
 
-    # Guardar en archivo JSON
+    # === NUEVO: calcular conteo general de todos los faltantes ===
+    todos_faltantes = []
+    for lista in lista_comentarios.values():
+        todos_faltantes.extend(lista)
+    conteo = dict(Counter(todos_faltantes))
+    data_ordenada["Contadores"] = conteo
+
     with open(ruta, "w", encoding="utf-8") as f:
         json.dump(data_ordenada, f, indent=4, ensure_ascii=False)
 
-    print(f"Papelería guardada con fecha en: {ruta}")
+    print(f"Papelería guardada con contadores en: {ruta}")
 
 def quitar_estatus(driver, wait)-> None:
     try:
@@ -407,38 +416,6 @@ def modificar_proyecto(driver,wait,descripcion:str, archivos_para_subir,url) -> 
     except Exception as e:
         print(f"Error al cargar el dashboard: {e}")
         return
-    ###
-    # Esperar campo de búsqueda por placeholder
-    try:
-        input_buscar = wait.until(EC.visibility_of_element_located((By.XPATH,"//input[contains(@placeholder,'Buscar por Folio, Descripción, Cliente, o Abogado...')]")))
-
-        # Asegurar que también esté interactuable
-        wait.until(EC.element_to_be_clickable((By.XPATH,"//input[contains(@placeholder,'Buscar por Folio, Descripción, Cliente, o Abogado...')]")))
-
-        # Limpiar la descripción
-        descripcion = re.sub(r"[-–—]+", " ", descripcion).strip()
-        descripcion = re.sub(r"[\"“”']", "", descripcion).strip()
-
-        # Escribir y presionar ENTER
-        input_buscar.clear()
-        input_buscar.send_keys(descripcion)
-        input_buscar.send_keys(Keys.ENTER)
-        print("✅ Campo de búsqueda detectado y texto enviado correctamente.")
-        time.sleep(2)  # pequeño delay para que cargue la tabla posterior
-    except Exception as e:
-        print(f"No se detectó el campo de búsqueda: {e}")
-        return
-    
-    lupa = wait.until(EC.element_to_be_clickable((By.XPATH,"//table//i[contains(@class,'fa-search')]/ancestor::a[contains(@class,'btn-light')]")))
-    driver.execute_script("arguments[0].click();", lupa)
-    #driver.execute_script("arguments[0].style.border='3px solid red'", lupa)
-
-    try:
-        boton_modificar = wait.until(EC.element_to_be_clickable((By.XPATH,"//a[contains(@class,'btn-primary') and contains(@href,'/projects/edit')]")))
-        driver.execute_script("arguments[0].click();", boton_modificar)
-        print(" Botón 'Modificar' presionado correctamente.")
-    except Exception as e:
-        print(f" No se pudo presionar el botón 'Modificar': {e}")
 
     #Ir a parte de documentos
     docs = ProjectsDocumentsPage(driver, wait)
@@ -451,13 +428,13 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
     """
     global js, actos_folder, lista_uifs
     
-    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
+    #driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
 
     try:
         #1) Login
-        LoginPage(driver, wait).login(url, user, pwd)
-        DashboardPage(driver, wait).assert_loaded()
-        logger.info("Login OK")
+        # LoginPage(driver, wait).login(url, user, pwd)
+        # DashboardPage(driver, wait).assert_loaded()
+        # logger.info("Login OK")
 
         # 2) Buscar primer acto sin cache
         target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)
@@ -467,7 +444,7 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
             #logger.warning("NO TIENE CACHE")
         else:
             logger.warning("YA TIENE CACHE")
-            descripcion, archivos_para_subir, json_actualizado = FaltantesService.procesar_proyecto(target_acto)
+            descripcion, archivos_para_subir, contadores, json_actualizado = FaltantesService.procesar_proyecto(target_acto)
             # archivos_para_subir: { key_str : [(nombre_doc, ruta_abs), ...] }
             for key, pairs in archivos_para_subir.items():
                 for nombre_doc, ruta in pairs:
@@ -476,9 +453,12 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
                     print("Subir:", nombre_doc, "->", ruta)
 
             if len(archivos_para_subir) > 0:
+                print("Contadores finales:")
+                for archivo, total in contadores.items():
+                    print(f"\t{archivo}: {total}")
                 cur = driver.current_url
                 base = actos_folder._origin_of(cur)
-                modificar_proyecto(driver,wait,descripcion, archivos_para_subir,base)
+                modificar_proyecto(driver,wait,descripcion, archivos_para_subir,base,contadores)
 
             # Si json_actualizado sólo tiene "Fecha de registro", ya está completo.
             if list(json_actualizado.keys()) == [["Fecha de registro"],["Descripcion del proyecto"]]:
@@ -487,6 +467,7 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
                 print("Aun faltan archivos!!")
             return
         
+        return
         resolver = ActoResolver()
         left, middle, right = resolver._split_por_guiones(os.path.basename(target_acto))
         _, titulo = resolver._extraer_escritura_y_titulo(left)
@@ -516,7 +497,7 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
             "otros":getattr(extraction, "otros")
         }
 
-        #"""
+        """
         # 5) Ir a Clientes y PROCESAR TODAS LAS PARTES
         cur = driver.current_url
         base = actos_folder._origin_of(cur)
@@ -538,7 +519,7 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
 
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
-        #"""
+        """
         _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"],descripcion, acto_ctx["inmuebles"], os.path.dirname(acto_ctx["json_path"]))
 
     finally:
@@ -601,11 +582,23 @@ if __name__ == "__main__":
     app()
 """
 {
-    "Fecha de registro": "2025-11-11T08:30:45",
-    "Descripcion del proyecto": "\"PRUEBAS BOTBI\"123. Adjudicacion – Juan – INM 32",
+    "Fecha de registro": "2025-11-12T08:04:19",
+    "Descripcion del proyecto": "\"PRUEBAS BOTBI\" Adjudicacion – Juan – INM 32",
+    "('INM', 'Inmueble 20_mz_Dej', 'INM')": [
+        "Escritura Antecedente (Inmueble)",
+        "Recibo de pago del impuesto predial",
+        "Solicitud de Avalúo",
+        "Plano"
+    ],
     "('INM', 'Inmueble 10_mz', 'INM')": [
         "Recibo de pago del impuesto predial",
         "Solicitud de Avalúo"
-    ]
+    ],
+    "Contadores": {
+        "Escritura Antecedente (Inmueble)": 1,
+        "Recibo de pago del impuesto predial": 2,
+        "Solicitud de Avalúo": 2,
+        "Plano": 1
+    }
 }
 """
