@@ -113,8 +113,8 @@ class FaltantesService:
         descripcion = data.get("Descripcion del proyecto","")
         contadores_prev = data.get("Contadores",{})
         contadores_new = contadores_prev.copy()
-
         archivos_para_subir: Dict[str, List[Tuple[str, str]]] = {}
+
         nuevo_data: dict = {"Fecha de registro": fecha}
         nuevo_data["Descripcion del proyecto"] = descripcion
 
@@ -155,7 +155,7 @@ class FaltantesService:
         if contadores_new:
             nuevo_data["Contadores"] = contadores_new
 
-        cls._guardar_json_faltantes(cache_dir, nuevo_data)
+        #cls._guardar_json_faltantes(cache_dir, nuevo_data)
         return descripcion, archivos_para_subir, contadores_prev, nuevo_data
 
     # =====================================================================

@@ -1,6 +1,3 @@
-"""
-    TODO: Clase de moficicaciones, migrar metodos hacia esa clase
-"""
 # bot/main.py
 import os, typer, time, json, re
 from collections import Counter
@@ -399,16 +396,24 @@ def quitar_estatus(driver, wait)-> None:
     except Exception as e:
         print(f"No se encontró el elemento de estatus: {e}")
 
-def modificar_proyecto(driver,wait,descripcion:str, archivos_para_subir,url, contadores) -> None:
+def modificar_proyecto(driver,wait, archivos_para_subir,url, contadores, descripcion:str) -> None:
     """
         Metodo para modificar un proyecto y subir los archivos faltantes
     """
     modify = tapModify(driver, wait)
     modify.open_url_projects(url)
     modify.buscarNombreProyecto(descripcion)
-    modify.presionar_lupa_nombre()
-    modify.presionar_modificar_proyecto()
-    modify.open_documents_tap()
+
+    #Si esta en revision no se puede modificar, toca esperar
+    #a que se quite de revision
+    if modify.esta_en_revision():
+        return False
+    
+    # modify.presionar_lupa_nombre()
+    # modify.presionar_modificar_proyecto()
+    # modify.open_documents_tap()
+    # modify.subir_documentos(archivos_para_subir, contadores)    
+    return True
 
 
 def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
@@ -417,13 +422,13 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
     """
     global js, actos_folder, lista_uifs
     
-    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
+    #driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
 
     try:
         #1) Login
-        LoginPage(driver, wait).login(url, user, pwd)
-        DashboardPage(driver, wait).assert_loaded()
-        logger.info("Login OK")
+        # LoginPage(driver, wait).login(url, user, pwd)
+        # DashboardPage(driver, wait).assert_loaded()
+        # logger.info("Login OK")
 
         # 2) Buscar primer acto sin cache
         target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)
@@ -435,22 +440,25 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
             logger.warning("YA TIENE CACHE")
             descripcion, archivos_para_subir, contadores, json_actualizado = FaltantesService.procesar_proyecto(target_acto)
             # archivos_para_subir: { key_str : [(nombre_doc, ruta_abs), ...] }
-            for key, pairs in archivos_para_subir.items():
-                for nombre_doc, ruta in pairs:
-                    print(key)
-                    # aquí usas tu flujo Selenium para subir 'ruta' y etiquetarlo como 'nombre_doc'
-                    print("Subir:", nombre_doc, "->", ruta)
+            # for key, pairs in archivos_para_subir.items():
+            #     tipo, nombre, rol = FaltantesService._parse_tuple_key(key)
+            #     print(f"Cliente: {nombre}")
+            #     for nombre_doc, ruta in pairs:
+            #         # aquí usas tu flujo Selenium para subir 'ruta' y etiquetarlo como 'nombre_doc'
+            #         print("Subir:", nombre_doc, "->", ruta)
 
             if len(archivos_para_subir) > 0:
                 print("Contadores finales:")
-                for archivo, total in contadores.items():
-                    print(f"\t{archivo}: {total}")
-                cur = driver.current_url
-                base = actos_folder._origin_of(cur)
-                modificar_proyecto(driver,wait,descripcion, archivos_para_subir,base,contadores)
+                # for archivo, total in contadores.items():
+                #     print(f"\t{archivo}: {total}")
+                # cur = driver.current_url
+                # base = actos_folder._origin_of(cur)
+                # if modificar_proyecto(driver,wait, archivos_para_subir,base,contadores,descripcion="2488"):
+                #     cache_dir = os.path.join(target_acto, "_cache_bot")
+                #     FaltantesService._guardar_json_faltantes(cache_dir, json_actualizado)
 
-            # Si json_actualizado sólo tiene "Fecha de registro", ya está completo.
-            if list(json_actualizado.keys()) == [["Fecha de registro"],["Descripcion del proyecto"]]:
+                
+            if not "Contadores" in json_actualizado:
                 print("Proyecto completo. Sin faltantes.")
             else:
                 print("Aun faltan archivos!!")
