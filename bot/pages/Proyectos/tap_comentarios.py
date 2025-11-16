@@ -79,3 +79,13 @@ class comentariosTab(BasePage):
                 print("ℹ️ No apareció ningún modal de descarga, continuando con el flujo...")
         else:
             print("NO SE PUDO SELECCIONAR EL BOTON DE ENVIAR XC")
+
+    def get_folio(self, descripcion:str) -> str :
+        xpath = (
+            "//tbody[@role='rowgroup']"
+            "//tr[.//td[@aria-colindex='3'][contains(., %s)]]"
+            "//td[@aria-colindex='1']//a"
+        ) % repr(descripcion)
+
+        elem = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+        return elem.text.strip()

@@ -1,3 +1,11 @@
+"""
+    TODO
+    AL MOMENTO DE ANALIZAR LA CARPETA EN FALTANTES (LA SEGUNDA
+    PASADA) DEBE DE CHECAR SI YA ESTA ESCRITA LA ESCRITURA PARA GUARDARLA.
+    DESPUES PROGRAMAR LA BUSQUEDA EN ESCRITRA   
+
+"""
+
 # bot/main.py
 import os, typer, time, json, re
 from collections import Counter
@@ -29,6 +37,7 @@ from bot.pages.dashboard_page import DashboardPage
 from bot.pages.login_page import LoginPage
 from bot.core.acto_detector import ActoResolver
 from bot.pages.Proyectos.docs_modify import tapModify
+from bot.pages.Escrituras.Escrituras import Escritura
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -272,14 +281,13 @@ def procesamiento_papeleria(driver, documents: list, docs, clientes: list, inmue
     but_seleccionar = driver.find_element(By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space(text())='Importar Seleccionados']")
     driver.execute_script("arguments[0].click();", but_seleccionar)
 
-def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre, descripcion, inmuebles: list, ruta: str):
+def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, acto_nombre, descripcion, inmuebles: list, ruta: str, escritura, abogado: str):
     """
         Automatizacion del apartado documentos en la pagina de 'Proyectos'
     """
-    resto = 'COMENTARIOS EXTRA PARA DESCRIPCION'
     pp = generalTap(driver, wait)
     pp.create_project(
-        abogado="BOT SINGRAFOS BOTBI",
+        abogado=abogado,
         cliente=cliente_principal,
         descripcion=("\"PRUEBAS BOTBI\" " + descripcion),
         acto=acto_nombre
@@ -315,7 +323,6 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     time.sleep(2)
 
     procesamiento_papeleria(driver, docs.list_all_required_descriptions(), docs, clientes, inmuebles)
-    guardar_papeleria_JSON(ruta, "\"PRUEBAS BOTBI\" " + descripcion)
     comentarios_tab = comentariosTab(driver,wait)
     if lista_comentarios:
         for tup, lis in lista_comentarios.items():
@@ -332,11 +339,17 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
             comentarios_tab.agregar_comentario(comentario_subir)
             comentarios_tab.enviar_comentario()
             time.sleep(1)
-        #comentarios_tab.guardar_proyecto()
+        comentarios_tab.guardar_proyecto()
         print("GUARDANDO PROYECTO...")
+        time.sleep(2)
+        folio = comentarios_tab.get_folio("\"PRUEBAS BOTBI\" " + descripcion)
+        guardar_papeleria_JSON(ruta, "\"PRUEBAS BOTBI\" " + descripcion, folio, escritura, cliente_principal, abogado)
     else:
-        #comentarios_tab.guardar_proyecto()
+        comentarios_tab.guardar_proyecto()
         print("GUARDANDO PROYECTO...")
+        time.sleep(2)
+        folio = comentarios_tab.get_folio("\"PRUEBAS BOTBI\" " + descripcion)
+        guardar_papeleria_JSON(ruta, "\"PRUEBAS BOTBI\" " + descripcion, folio, escritura, cliente_principal, abogado)
         #print("GUARDAR PROYECTO...")
     # print("PAPELERIA FALTANTE")
     # for tup, lis in lista_comentarios.items():
@@ -348,7 +361,7 @@ def _fill_new_project_fields(driver, wait, cliente_principal, pf_list,pm_list, a
     #         print(f"{i+1}. {lis[i]}")
     #     print("\n")
 
-def guardar_papeleria_JSON(ruta: str, descripcion: str):
+def guardar_papeleria_JSON(ruta: str, descripcion: str, folio:str, escritura: str, cliente: str, abg:str):
     """
     Guarda en JSON con estructura extendida:
     {
@@ -365,7 +378,11 @@ def guardar_papeleria_JSON(ruta: str, descripcion: str):
     ruta = os.path.join(ruta, "papeleria_faltante.json")
     data_ordenada = OrderedDict()
     data_ordenada["Fecha de registro"] = datetime.now().isoformat(timespec="seconds")
+    data_ordenada["Folio"] = folio
+    data_ordenada["Escritura"] = escritura
     data_ordenada["Descripcion del proyecto"] = descripcion
+    data_ordenada["Cliente"] = cliente
+    data_ordenada["Abogado"] = abg
 
     # Guardar faltantes por cada parte
     for k, v in lista_comentarios.items():
@@ -396,25 +413,59 @@ def quitar_estatus(driver, wait)-> None:
     except Exception as e:
         print(f"No se encontró el elemento de estatus: {e}")
 
-def modificar_proyecto(driver,wait, archivos_para_subir,url, contadores, descripcion:str) -> None:
+def modificar_proyecto(driver,wait, archivos_para_subir,url, contadores, escritura: str, clt: str, abg: str,folio:str) -> None:
     """
         Metodo para modificar un proyecto y subir los archivos faltantes
     """
     modify = tapModify(driver, wait)
     modify.open_url_projects(url)
-    modify.buscarNombreProyecto(descripcion)
+    try:
+        modify.buscarNombreProyecto(folio+", "+clt+", "+abg)
 
-    #Si esta en revision no se puede modificar, toca esperar
-    #a que se quite de revision
-    if modify.esta_en_revision():
+        #Si esta en revision no se puede modificar, toca esperar
+        #a que se quite de revision
+        if modify.esta_en_revision():
+            return False
+        
+        modify.presionar_lupa_nombre()
+        modify.presionar_modificar_proyecto()
+        modify.open_documents_tap()
+        modify.subir_documentos(archivos_para_subir, contadores)
+        return True
+    except Exception:
+        pass
+    #Probar con escritura
+    try:
+        deeds = Escritura(driver,wait)
+        deeds.open_url_deeds(url)
+        deeds.buscarProyecto(str(escritura)+", "+clt+", "+abg)
+        modify.presionar_lupa_nombre()
+        deeds.open_documents_tap()
+
+        #Proceso a repetir por archivo
+        for info_parte, info_documentos in archivos_para_subir.items():
+            deeds.subir_adjunto()
+            tipo, nombre_parte, rol = FaltantesService._parse_tuple_key(info_parte)
+            for nombre_documento, ruta_archivo in info_documentos:
+                print(f"Procesando: {nombre_documento}")
+                deeds.set_tipo_documento(nombre_documento)
+                deeds.subir_documento(ruta_archivo)
+                deeds.set_descripcion(nombre_parte)
+                #Cambiar por subir
+                deeds.click_cancelar()
+                #deeds.click_subir()
+
+                time.sleep(1)
+                contadores[nombre_documento]-=1
+                if contadores[nombre_documento] == 0:
+                    deeds.marcar_faltante(nombre_documento)
+                time.sleep(1)
+        deeds.click_guardar()        
+        return True
+    except Exception as e:
+        print(f"No se encontró el proyecto con folio {folio} en 'Proyectos' o 'Escrituras': {e}")
         return False
-    
-    # modify.presionar_lupa_nombre()
-    # modify.presionar_modificar_proyecto()
-    # modify.open_documents_tap()
-    # modify.subir_documentos(archivos_para_subir, contadores)    
-    return True
-
+        
 
 def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
     """
@@ -422,23 +473,31 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
     """
     global js, actos_folder, lista_uifs
     
-    #driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
+    driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
 
     try:
         #1) Login
-        # LoginPage(driver, wait).login(url, user, pwd)
-        # DashboardPage(driver, wait).assert_loaded()
-        # logger.info("Login OK")
+        LoginPage(driver, wait).login(url, user, pwd)
+        DashboardPage(driver, wait).assert_loaded()
+        logger.info("Login OK")
 
         # 2) Buscar primer acto sin cache
         target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)
         
         if flag:
-            logger.warning("No hay actos nuevos (todos tienen _cache_bot). Nada que hacer.")
-            #logger.warning("NO TIENE CACHE")
+            #logger.warning("No hay actos nuevos (todos tienen _cache_bot). Nada que hacer.")
+            logger.warning("NO TIENE CACHE")
         else:
             logger.warning("YA TIENE CACHE")
-            descripcion, archivos_para_subir, contadores, json_actualizado = FaltantesService.procesar_proyecto(target_acto)
+            descripcion, archivos_para_subir, contadores, json_actualizado, folio, escritura, clt, abg = FaltantesService.procesar_proyecto(target_acto)
+            if not escritura:
+                resolver = ActoResolver()
+                left, middle, right = resolver._split_por_guiones(os.path.basename(target_acto))
+                _, titulo = resolver._extraer_escritura_y_titulo(left)
+                if _:
+                    escritura = _
+                    json_actualizado["Escritura"] = escritura
+
             # archivos_para_subir: { key_str : [(nombre_doc, ruta_abs), ...] }
             # for key, pairs in archivos_para_subir.items():
             #     tipo, nombre, rol = FaltantesService._parse_tuple_key(key)
@@ -451,26 +510,28 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
                 print("Contadores finales:")
                 # for archivo, total in contadores.items():
                 #     print(f"\t{archivo}: {total}")
-                # cur = driver.current_url
-                # base = actos_folder._origin_of(cur)
-                # if modificar_proyecto(driver,wait, archivos_para_subir,base,contadores,descripcion="2488"):
-                #     cache_dir = os.path.join(target_acto, "_cache_bot")
-                #     FaltantesService._guardar_json_faltantes(cache_dir, json_actualizado)
+                #"""
+                cur = driver.current_url
+                base = actos_folder._origin_of(cur)
+                if modificar_proyecto(driver,wait, archivos_para_subir,base,contadores, escritura, clt="GMSD ASOCIADOS", abg="Jorge del Río",folio="2551"):
+                    cache_dir = os.path.join(target_acto, "_cache_bot")
+                    FaltantesService._guardar_json_faltantes(cache_dir, json_actualizado)
+                #"""
 
                 
             if not "Contadores" in json_actualizado:
                 print("Proyecto completo. Sin faltantes.")
+                return
             else:
                 print("Aun faltan archivos!!")
             return
         
-        return
         resolver = ActoResolver()
         left, middle, right = resolver._split_por_guiones(os.path.basename(target_acto))
         _, titulo = resolver._extraer_escritura_y_titulo(left)
         #print(f"Titulo: {titulo}, Middle: {middle}, Right: {right}, _: {_}")
         descripcion = " – ".join(filter(None, [titulo, middle, right]))
-        #print(f"Descripcion: {descripcion}")
+        #print(f"Escritura o antecedente: {_}")
         
         # 3) Escanear y guardar JSON
         extraction = scan_acto_folder(target_acto, acto_nombre=os.path.basename(target_acto))
@@ -517,7 +578,7 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
         logger.success("Todas las partes del acto han sido procesadas.")
         # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
         """
-        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"],descripcion, acto_ctx["inmuebles"], os.path.dirname(acto_ctx["json_path"]))
+        _fill_new_project_fields(driver,wait,acto_ctx["cliente_principal"],acto_ctx["pf"],acto_ctx["pm"], acto_ctx["acto_nombre"],descripcion, acto_ctx["inmuebles"], os.path.dirname(acto_ctx["json_path"]), _, abogado)
 
     finally:
         input("INTRODUCE: ")
@@ -577,25 +638,3 @@ def run(
 
 if __name__ == "__main__":
     app()
-"""
-{
-    "Fecha de registro": "2025-11-12T08:04:19",
-    "Descripcion del proyecto": "\"PRUEBAS BOTBI\" Adjudicacion – Juan – INM 32",
-    "('INM', 'Inmueble 20_mz_Dej', 'INM')": [
-        "Escritura Antecedente (Inmueble)",
-        "Recibo de pago del impuesto predial",
-        "Solicitud de Avalúo",
-        "Plano"
-    ],
-    "('INM', 'Inmueble 10_mz', 'INM')": [
-        "Recibo de pago del impuesto predial",
-        "Solicitud de Avalúo"
-    ],
-    "Contadores": {
-        "Escritura Antecedente (Inmueble)": 1,
-        "Recibo de pago del impuesto predial": 2,
-        "Solicitud de Avalúo": 2,
-        "Plano": 1
-    }
-}
-"""

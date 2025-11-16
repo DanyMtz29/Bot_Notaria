@@ -114,9 +114,17 @@ class FaltantesService:
         contadores_prev = data.get("Contadores",{})
         contadores_new = contadores_prev.copy()
         archivos_para_subir: Dict[str, List[Tuple[str, str]]] = {}
+        folio = data.get("Folio")
+        escritura = data.get("Escritura")
+        abg = data.get("Abogado")
+        cliente = data.get("Cliente")
 
         nuevo_data: dict = {"Fecha de registro": fecha}
+        nuevo_data["Folio"] = folio
+        nuevo_data["Escritura"] = escritura
         nuevo_data["Descripcion del proyecto"] = descripcion
+        nuevo_data["Cliente"] = cliente
+        nuevo_data["Abogado"] = abg
 
         for k, faltantes in data.items():
             if k == "Fecha de registro":
@@ -156,7 +164,7 @@ class FaltantesService:
             nuevo_data["Contadores"] = contadores_new
 
         #cls._guardar_json_faltantes(cache_dir, nuevo_data)
-        return descripcion, archivos_para_subir, contadores_prev, nuevo_data
+        return descripcion, archivos_para_subir, contadores_prev, nuevo_data, folio, escritura, cliente, abg
 
     # =====================================================================
     # -------------------------- UTIL DE ARCHIVO ---------------------------
