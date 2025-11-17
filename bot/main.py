@@ -1,18 +1,14 @@
-"""
-    TODO
-    AL MOMENTO DE ANALIZAR LA CARPETA EN FALTANTES (LA SEGUNDA
-    PASADA) DEBE DE CHECAR SI YA ESTA ESCRITA LA ESCRITURA PARA GUARDARLA.
-    DESPUES PROGRAMAR LA BUSQUEDA EN ESCRITRA   
-
-"""
+from bot.Proceso.procesar_abogados import proceso_por_abogado
 
 # bot/main.py
 import os, typer, time, json, re
 from collections import Counter
 
+
 from collections import OrderedDict
 from datetime import datetime
 from loguru import logger
+from bot.utils.Logger import setup_logger
 from dotenv import load_dotenv
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -39,6 +35,7 @@ from bot.core.acto_detector import ActoResolver
 from bot.pages.Proyectos.docs_modify import tapModify
 from bot.pages.Escrituras.Escrituras import Escritura
 
+setup_logger("Proceso principal")
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
 lista_uifs = []
@@ -467,7 +464,7 @@ def modificar_proyecto(driver,wait, archivos_para_subir,url, contadores, escritu
         return False
         
 
-def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
+def proceso_por_abogado2(headless,abogado, actos_root, url,user,pwd):
     """
         Proceso que  recorre el portal por todos los proyectos de cada abogado
     """
@@ -477,10 +474,10 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
 
     try:
         #1) Login
-        LoginPage(driver, wait).login(url, user, pwd)
+        login_url = url+"login"
+        LoginPage(driver, wait).login(login_url, user, pwd)
         DashboardPage(driver, wait).assert_loaded()
         logger.info("Login OK")
-
         # 2) Buscar primer acto sin cache
         target_acto, flag = actos_folder._find_first_acto_without_cache(actos_root)
         
@@ -588,30 +585,23 @@ def proceso_por_abogado(headless,abogado, actos_root, url,user,pwd):
 # Pipeline
 # =========================
 def _pipeline(headless: bool):
+    proceso_por_abogado(headless)
+
     #Variables globales
     
-    # send_email(
-    #     to="danieljm2901@gmail.com",
-    #     subject="HOLA DANIEL!!",
-    #     body_html="<h1>ESTIMADO QUERIDO AMIGO:</h1><p>Sientase orgulloso de la vida.</p>",
-    #     body_text="Es un dia maravilloso para estar en cama."
-    # )
+    # load_dotenv("bot/config/.env")
 
-    #return
+    # url = os.getenv("PORTAL_URL", "")
+    # user = os.getenv("PORTAL_USER", "")
+    # pwd  = os.getenv("PORTAL_PASS", "")
+    # actos_root = os.getenv("LOCAL_ACTOS_ROOT", "")
 
-    load_dotenv("bot/config/.env")
+    # if not (url and user and pwd and actos_root):
+    #     logger.error("Faltan PORTAL_URL/USER/PASS y/o ACTOS_ROOT en .env")
+    #     raise typer.Exit(code=2)
 
-    url = os.getenv("PORTAL_URL", "")
-    user = os.getenv("PORTAL_USER", "")
-    pwd  = os.getenv("PORTAL_PASS", "")
-    actos_root = os.getenv("LOCAL_ACTOS_ROOT", "")
-
-    if not (url and user and pwd and actos_root):
-        logger.error("Faltan PORTAL_URL/USER/PASS y/o ACTOS_ROOT en .env")
-        raise typer.Exit(code=2)
-
-    for name in os.listdir(actos_root):
-          proceso_por_abogado(headless,name,os.path.abspath(os.path.join(actos_root,name)), url,user,pwd)
+    # for name in os.listdir(actos_root):
+    #       proceso_por_abogado(headless,name,os.path.abspath(os.path.join(actos_root,name)), url,user,pwd)
     
 
 # =========================
@@ -638,3 +628,10 @@ def run(
 
 if __name__ == "__main__":
     app()
+
+# send_email(
+#     to="danieljm2901@gmail.com",
+#     subject="HOLA DANIEL!!",
+#     body_html="<h1>ESTIMADO QUERIDO AMIGO:</h1><p>Sientase orgulloso de la vida.</p>",
+#     body_text="Es un dia maravilloso para estar en cama."
+# )

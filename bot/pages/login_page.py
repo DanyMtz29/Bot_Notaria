@@ -1,9 +1,13 @@
 # bot/pages/login_page.py
 from __future__ import annotations
 from selenium.webdriver.common.by import By
-from .base_page import BasePage
+from bot.utils.base import Base
+from bot.utils.common_imports import *
+from bot.utils.Logger import setup_logger
 
-class LoginPage(BasePage):
+setup_logger("Proceso principal")
+
+class LoginPage(Base):
     # Selectores combinados (un solo wait por campo, MUY rápido)
     EMAIL = (By.CSS_SELECTOR,
         "input[formcontrolname='email'],"
@@ -38,25 +42,27 @@ class LoginPage(BasePage):
         except Exception:
             pass
 
-    def login(self, url: str, email: str, password: str):
-        self.open(url)
-        self.accept_cookies_if_any()
+    def login(self, email: str, password: str):
+        try: 
+            self.open_url("login")
+            self.accept_cookies_if_any()
 
-        # <<< CLAVE >>> espera a que Angular pinte el DOM del login
-        self.wait_for_app_ready(timeout=15)
+            # <<< CLAVE >>> espera a que Angular pinte el DOM del login
+            self.wait_for_app_ready(timeout=15)
 
-        email_el = self.find_first_fast([self.EMAIL], per_try=2.0, visible=True)
-        pass_el  = self.find_first_fast([self.PASSWORD], per_try=2.0, visible=True)
-        self.type_text(email_el, email)
-        self.type_text(pass_el,  password)
+            email_el = self.find_first_fast([self.EMAIL], per_try=2.0, visible=True)
+            pass_el  = self.find_first_fast([self.PASSWORD], per_try=2.0, visible=True)
+            self.type_text(email_el, email)
+            self.type_text(pass_el,  password)
 
-        try:
-            self.click_when_clickable(self.SUBMIT_CSS, timeout=2.0).click()
-        except Exception:
-            # fallback por si el botón no es type=submit
-            btn = self.find_first_fast([self.SUBMIT_XPATH], per_try=1.2, visible=True)
-            self.driver.execute_script("arguments[0].click();", btn)
+            try:
+                self.click_when_clickable(self.SUBMIT_CSS, timeout=2.0).click()
+            except Exception:
+                # fallback por si el botón no es type=submit
+                btn = self.find_first_fast([self.SUBMIT_XPATH], per_try=1.2, visible=True)
+                self.driver.execute_script("arguments[0].click();", btn)
 
-        # Sal de /login (espera a que cambie la URL o se muestre el dashboard)
-
-        self.wait.until(lambda d: "login" not in d.current_url.lower())
+            # Sal de /login (espera a que cambie la URL o se muestre el dashboard)
+            self.wait.until(lambda d: "login" not in d.current_url.lower())
+        except Exception as e:
+            logger.error(f"No se pudo iniciar sesion {e}")

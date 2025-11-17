@@ -1,12 +1,12 @@
 
 import re, time
 from selenium.webdriver.support import expected_conditions as EC
-from ..base_page import BasePage
+from bot.utils.base import Base
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 
-class Escritura(BasePage):
+class Escritura(Base):
     def open_url_deeds(self, url:str):
         """
             Abre https://not84.singrafos.com/deeds
@@ -51,7 +51,7 @@ class Escritura(BasePage):
             boton_subir = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Subir Adjunto']")))
             # self.driver.execute_script("arguments[0].style.border='3px solid red';", boton_subir)
             # time.sleep(2)
-            self.js_click(boton_subir)
+            self.driver.execute_script("arguments[0].click();", boton_subir)
         except Exception:
             print(f"No se pudo seleccionar el boton de subir adjunto")
 
@@ -135,6 +135,7 @@ class Escritura(BasePage):
         self.driver.execute_script("arguments[0].click();", checkbox)
 
         print(f"✔ Marcado como Faltante: {nombre_documento}")
+
     def click_guardar(self):
         boton_guardar = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'btn-success') and contains(@class,'ms-1')]")))
         #boton_guardar.click()

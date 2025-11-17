@@ -1,0 +1,15 @@
+{
+  "acto_dir": "ESC. Adjudicacion - Daniel - INM 1002",
+  "acto_nombre": "ADJUDICACION JUDICIAL",
+  "generated_at": "2025-11-16T19:06:47",
+  "data": {
+    "acto_nombre": "ADJUDICACION JUDICIAL",
+    "partes_pf": [],
+    "partes_pm": [],
+    "inmuebles": [],
+    "otros": [],
+    "cliente_principal": "Daniel",
+    "cliente_fuente": "carpeta",
+    "escritura": null
+  }
+}

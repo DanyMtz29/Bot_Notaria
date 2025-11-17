@@ -1,7 +1,7 @@
 from __future__ import annotations
 import re, time
 from selenium.webdriver.common.keys import Keys
-from ..base_page import BasePage
+from bot.utils.base import Base
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from bot.core.faltantes import FaltantesService
@@ -12,7 +12,7 @@ from selenium.webdriver.support.ui import Select
 from bot.pages.projects_documents import ProjectsDocumentsPage
 from bot.pages.Proyectos.tap_comentarios import comentariosTab
 
-class tapModify(BasePage):
+class tapModify(Base):
     def buscarNombreProyecto(self, descripcion):
         """
             Coloca el nombre en el input del dashboard del portal
