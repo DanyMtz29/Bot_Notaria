@@ -3,7 +3,6 @@ from bot.utils.common_imports import *
 from bot.core.browser import make_driver
 
 from bot.pages.login_page import LoginPage
-from bot.utils.base import Base
 from bot.Proceso.procesar_actos import procesar_actos
 
 

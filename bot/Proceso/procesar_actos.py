@@ -18,37 +18,39 @@ def procesar_actos(driver, wait,abogado, actos_root):
         Proceso que recorre el portal por todos los proyectos de cada abogado
     """
     it = 1
-    intents =3
+    attempts =3
     for acto in os.listdir(actos_root):
         full = os.path.join(actos_root, acto)
         cache_dir = os.path.join(full, "_cache_bot")
         json_dir = os.path.join(cache_dir, "papeleria_faltante.json")
         if not os.path.exists(json_dir):
-            while intents > 0:
+            while attempts > 0:
                 try:
                     extraer_datos_proyecto(driver, wait, full, abogado, cache_dir)
                     logger.success(f"Proyecto {acto} creado correctamente")
                     break
                 except Exception as e:
                     shutil.rmtree("bot/_cache_bot")
-                    intens-=1
+                    attempts-=1
                     logger.error(f"No se pudo crear el Proyecto: {acto}. Error: {e}")
-                    print("REINTENTANDO")
+                    logger("REINTENTANDO crear proyecto")
                     time.sleep(2)
         else:
-            while intents > 0:
+            while attempts > 0:
                 try:
                     modificar_proyecto(driver, wait, full)
                     logger.success(f"Proyecto {acto} modificado correctamente")
                     break
                 except Exception as e:
-                    intents -=1
+                    attempts -=1
                     logger.error(f"No se pudo modificar el Proyecto: {acto}. Error: {e}")
+                    print(f"Reintento {attempts}")
+                    logger.error("REINTENTANDO modificar el proyecto")
                     time.sleep(2)
         time.sleep(3)
         if it > 1:
             break
-        intents = 3
+        attempts = 3
         it+=1
 
 def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str) -> None:
@@ -63,13 +65,15 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
     
     # 3) Escanear y guardar JSON
     extraction = scan_acto_folder(acto, acto_nombre=os.path.basename(acto))
-    json_path = actos_folder._ensure_cache_and_write_json(acto, extraction)
 
     pf_list, pm_list = actos_folder._extract_partes_pf_pm(extraction)
 
     acto_nombre = getattr(extraction, "acto_nombre", os.path.basename(acto))
     cliente_principal = getattr(extraction, "cliente_principal")
     inm_list = getattr(extraction, "inmuebles")
+
+    #Guarda el json
+    json_path = actos_folder._ensure_cache_and_write_json(acto, extraction)
 
     all_parties = actos_folder._flatten_all_parties(pf_list, pm_list)
     partes = []
