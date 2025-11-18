@@ -1,5 +1,5 @@
 from loguru import logger
-import os, time
+import os, time, re
 from datetime import datetime
 
-__all__ = ["logger", "os", "datetime", "time"]
+__all__ = ["logger", "os", "datetime", "time", "re"]

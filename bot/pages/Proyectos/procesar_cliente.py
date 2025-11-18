@@ -26,13 +26,14 @@ class Cliente(Base):
         self.CP.open_direct(self.url)
         self.CP.assert_loaded()
 
+        time.sleep(1)
         found = self.CP.search_by_name(party["nombre_upper"], timeout=12)
-
+        time.sleep(1)
         if found:
-            print("Cliente EXISTE en consola")
+            logger.info("Cliente EXISTE en Singrafos: {}", party["nombre_upper"])
             self._descargar_uif_existente(party)
         else:
-            print("Cliente NO existe; creando por IdCIF...")
+            logger.info("Cliente NO existe, creando por IdCIF... [{}]", party.get("idcif", "sin IdCIF"))
             self._crear_cliente_por_idcif(party)
             self._descargar_uif_existente(party)
 
@@ -40,6 +41,9 @@ class Cliente(Base):
     def _descargar_uif_existente(self, party):
         self.CP.click_first_view()
         logger.info("Detalle de cliente abierto (lupita).")
+
+        self.wait.until(
+        EC.text_to_be_present_in_element((By.XPATH,"//h4[contains(@class,'page-title')]""//small[contains(@class,'fw-lighter')]"),party["nombre_upper"]))
 
         cdp = CustomerDetailPage(self.driver, self.wait)
         cdp.click_busqueda_uif(timeout=20)
@@ -104,25 +108,3 @@ class Cliente(Base):
         # Limpia caracteres raros para nombre de archivo
         cleaned = "".join(ch if ch.isalnum() or ch in (" ", "-", "_") else "_" for ch in base)
         return cleaned.replace("  ", " ").replace(" ", "_")
-"""
-    # 5) Ir a Clientes y PROCESAR TODAS LAS PARTES
-    cur = driver.current_url
-    base = actos_folder._origin_of(cur)
-
-    if not all_parties:
-        logger.warning("No hay PARTES (PF/PM) para buscar/crear y sacar UIF.")
-        return
-
-    logger.info(f"Procesando {len(all_parties)} parte(s) del acto: {acto_ctx['acto_nombre']}")
-    for idx, party in enumerate(all_parties, start=1):
-        logger.info(f"===== PARTE {idx}/{len(all_parties)} :: {party.get('tipo')} | {party.get('rol') or '-'} | {party.get('nombre_upper')} =====")
-        try:
-            if party.get('tipo') == "PM":
-                actos_folder._process_party(lista_uifs, driver, wait, base, party.get("representante"))
-            actos_folder._process_party(lista_uifs, driver, wait, base, party)
-        except Exception as e:
-            logger.exception(f"Error procesando parte [{party.get('nombre_upper')}]: {e}")
-
-    logger.success("Todas las partes del acto han sido procesadas.")
-    # (Más adelante: iterar actos/proyectos; por ahora solo el primero sin _cache_bot)
-    """

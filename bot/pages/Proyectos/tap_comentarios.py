@@ -1,12 +1,12 @@
 # bot/pages/projects_page.py
 from __future__ import annotations
-from selenium.webdriver.common.by import By
-from ..base_page import BasePage
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-import time
 
-class comentariosTab(BasePage):
+from bot.utils.common_imports import *
+from bot.utils.selenium_imports import *
+from bot.utils.base import Base
+
+
+class comentariosTab(Base):
 
     def open_tap_comentarios(self):
         comentarios_tab = self.driver.find_element(

@@ -1,16 +1,12 @@
 # bot/pages/projects_documents.py
 from __future__ import annotations
 
-import os
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select, WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException, TimeoutException
-
-from .base_page import BasePage
+from bot.utils.common_imports import *
+from bot.utils.selenium_imports import *
+from bot.utils.base import Base
 
 
-class ProjectsDocumentsPage(BasePage):
+class ProjectsDocumentsPage(Base):
     """
     Acciones relacionadas con la pestaña 'Documentos' del formulario de Proyecto.
     """

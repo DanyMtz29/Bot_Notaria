@@ -21,8 +21,11 @@ def procesar_actos(driver, wait,abogado, actos_root):
     attempts =3
     for acto in os.listdir(actos_root):
         full = os.path.join(actos_root, acto)
+        if not os.path.isdir(full):# Ignorar archivos sueltos que no sean carpetas de acto
+            continue
         cache_dir = os.path.join(full, "_cache_bot")
         json_dir = os.path.join(cache_dir, "papeleria_faltante.json")
+        print(f"Procesando {acto}")
         if not os.path.exists(json_dir):
             while attempts > 0:
                 try:
@@ -30,10 +33,9 @@ def procesar_actos(driver, wait,abogado, actos_root):
                     logger.success(f"Proyecto {acto} creado correctamente")
                     break
                 except Exception as e:
-                    shutil.rmtree("bot/_cache_bot")
                     attempts-=1
                     logger.error(f"No se pudo crear el Proyecto: {acto}. Error: {e}")
-                    logger("REINTENTANDO crear proyecto")
+                    shutil.rmtree(cache_dir, ignore_errors=True)
                     time.sleep(2)
         else:
             while attempts > 0:
@@ -45,13 +47,14 @@ def procesar_actos(driver, wait,abogado, actos_root):
                     attempts -=1
                     logger.error(f"No se pudo modificar el Proyecto: {acto}. Error: {e}")
                     print(f"Reintento {attempts}")
-                    logger.error("REINTENTANDO modificar el proyecto")
                     time.sleep(2)
         time.sleep(3)
         if it > 1:
             break
         attempts = 3
         it+=1
+        logger.error("REINTENTANDO")
+    print("TERMINA")
 
 def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str) -> None:
     """
@@ -136,9 +139,13 @@ def subir_faltantes_proyecto(driver,wait, archivos_para_subir, contadores, escri
         modify.presionar_modificar_proyecto()
         modify.open_documents_tap()
         modify.subir_documentos(archivos_para_subir, contadores)
+        modify.open_url("projects")
+        modify.limpiar_busqueda_proyecto()
         return True
     except Exception:
         time.sleep(5)
+        modify.open_url("projects")
+        modify.limpiar_busqueda_proyecto()
         pass
     #Probar con escritura
     try:
@@ -169,10 +176,15 @@ def subir_faltantes_proyecto(driver,wait, archivos_para_subir, contadores, escri
                 contadores[nombre_documento]-=1
                 if contadores[nombre_documento] == 0:
                     deeds.marcar_faltante(nombre_documento)
+
                 time.sleep(1)
         deeds.click_guardar()
+        deeds.open_url_deeds(deeds.url)
+        modify.limpiar_busqueda_proyecto()
         return True
     except Exception as e:
+        deeds.open_url_deeds(deeds.url)
+        deeds.limpiar_busqueda_proyecto()
         logger.error(f"No se encontró el proyecto con folio {folio} en 'Proyectos' o 'Escrituras': {e}")
         return False
 
@@ -196,6 +208,11 @@ def modificar_proyecto(driver, wait, acto):
             FaltantesService._guardar_json_faltantes(cache_dir, json_actualizado)
         else:
             raise Exception
+    
+    if "Contadores" in json_actualizado:
+        logger.warning(f"Proyecto: {acto} incompleto!")
     else:
         logger.success(f"Proyecto: {acto} COMPLETO!")
+    
+
     

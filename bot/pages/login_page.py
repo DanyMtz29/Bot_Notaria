@@ -3,9 +3,6 @@ from __future__ import annotations
 from selenium.webdriver.common.by import By
 from bot.utils.base import Base
 from bot.utils.common_imports import *
-from bot.utils.Logger import setup_logger
-
-setup_logger("Proceso principal")
 
 class LoginPage(Base):
     # Selectores combinados (un solo wait por campo, MUY rápido)

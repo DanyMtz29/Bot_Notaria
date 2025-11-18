@@ -19,6 +19,33 @@ except Exception:
 
 # ...
 
+_CSF_SCANNER = None
+
+def _get_csf_scanner():
+    """
+    Inicializa CSFScanner una sola vez y reutiliza la misma instancia.
+    Esto evita el costo brutal de cargar EasyOCR en cada PDF.
+    """
+    global _CSF_SCANNER
+
+    # Si ya está cargado, lo reusamos
+    if _CSF_SCANNER is not None:
+        return _CSF_SCANNER
+
+    # Si no está disponible la clase, no hay nada que hacer
+    if 'CSFScanner' not in globals() or CSFScanner is None:
+        logger.warning("CSFScanner no está disponible (csf_ocr no se pudo importar).")
+        return None
+
+    try:
+        logger.info("Inicializando CSFScanner (EasyOCR) por primera vez...")
+        _CSF_SCANNER = CSFScanner(langs=("es", "en"), gpu=False)
+    except Exception as e:
+        logger.error("Error inicializando CSFScanner: {}", e)
+        _CSF_SCANNER = None
+
+    return _CSF_SCANNER
+
 def _norm_upper(s: Optional[str]) -> Optional[str]:
     if s is None:
         return None
@@ -135,33 +162,41 @@ def _extract_positional_fields(pdf_path: str) -> Tuple[Optional[str], Optional[s
 
     return rfc, idcif, nombre_completo
 
-# =============== API pública (con fallback a OCR) ===============
 def extract_csf_fields(path: str):
-    # 1) intentar lectura posicional si hay texto
+    """
+    Extrae RFC, idCIF y nombre a partir de una CSF.
+    1) Intenta lectura posicional con PyMuPDF (texto seleccionable).
+    2) Si no hay texto o falta algo, hace fallback a EasyOCR (CSFScanner) reutilizable.
+    """
+    # 1) Intentar lectura posicional si hay texto
     has_text = _pdf_has_selectable_text(path)
     rfc = idcif = nombre = None
 
-    if has_text:
-        print("TIENE TEXTO!!")
-    else:
-        print("NO TIENE TEXTO!!")
+    # Logs suaves, sin prints en consola
+    logger.debug("Analizando CSF {} (tiene texto seleccionable: {})", path, has_text)
 
     if has_text:
-        # print(f"INPUT: {path}")
-        rfc, idcif, nombre = _extract_positional_fields(path)
-        # logger.info(f"RFC: {rfc}, Nombre: {nombre}, IDCIF: {idcif}")
+        try:
+            rfc, idcif, nombre = _extract_positional_fields(path)
+            logger.debug("CSF posicional -> RFC={}, idcif={}, nombre={}", rfc, idcif, nombre)
+        except Exception as e:
+            logger.warning("Error en extracción posicional de CSF {}: {}", path, e)
 
-    # 2) fallback a EasyOCR si no hay texto o faltó todo
+    # 2) Fallback a EasyOCR si no hay texto o faltó todo
     if (not has_text) or (not any([rfc, idcif, nombre])):
-        # print(f"Entra aca: {path}")
-        if CSFScanner is not None:
+        csf = _get_csf_scanner()
+        if csf is not None:
             logger.info("Usando EasyOCR fallback (sin Tesseract) en {}", path)
-            csf = CSFScanner(langs=("es","en"), gpu=False)
-            nombre, rfc, idcif = csf.scan(path)
-            # rfc = rfc or r2
-            # idcif = idcif or i2
-            # nombre = nombre or n2
+            try:
+                nombre_ocr, rfc_ocr, idcif_ocr = csf.scan(path)
+                # Solo pisar si faltaban datos
+                rfc = rfc or rfc_ocr
+                idcif = idcif or idcif_ocr
+                nombre = nombre or nombre_ocr
+                logger.debug("CSF OCR -> RFC={}, idcif={}, nombre={}", rfc, idcif, nombre)
+            except Exception as e:
+                logger.error("Error usando CSFScanner en {}: {}", path, e)
         else:
-            logger.warning("No está disponible CsfEasyOCRExtractor.")
+            logger.warning("No está disponible CSFScanner para OCR, se mantiene lo extraído por texto.")
 
     return rfc, idcif, nombre

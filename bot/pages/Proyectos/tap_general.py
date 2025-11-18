@@ -1,14 +1,14 @@
 # bot/pages/projects_page.py
 from __future__ import annotations
-from selenium.webdriver.common.by import By
-from ..base_page import BasePage
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
-import time
+
+
+from bot.utils.common_imports import *
+from bot.utils.base import Base
+from bot.utils.selenium_imports import *
 
 NEW_PROJECT_URL = "https://not84.singrafos.com/projects/new"
 
-class generalTap(BasePage):
+class generalTap(Base):
     # Título / ancla de la vista (sirve para saber que ya cargó)
     TITLE_HINTS = [
         (By.XPATH, "//h1[contains(.,'Proyectos')]"),

@@ -243,11 +243,15 @@ class Documentos(Base):
                 comentarios_tab.agregar_comentario(comentario_subir)
                 comentarios_tab.enviar_comentario()
                 time.sleep(1)
-        print("GUARDANDO PROYECTO...")
-        self.guardar_papeleria_JSON(cache_dir, "\"PRUEBAS BOTBI\" " + descripcion, "123", escritura, cliente, abogado)
         comentarios_tab.guardar_proyecto()
         time.sleep(2)
-        folio = comentarios_tab.get_folio("\"PRUEBAS BOTBI\" " + descripcion)
+        
+        try:
+            folio = comentarios_tab.get_folio("\"PRUEBAS BOTBI\" " + descripcion)
+        except Exception as e:
+            logger.error("NO se pudo capturar el folio en el proyecto: {}",e)
+
+        self.guardar_papeleria_JSON(cache_dir, "\"PRUEBAS BOTBI\" " + descripcion, folio, escritura, cliente, abogado)
 
     def guardar_papeleria_JSON(self,ruta: str, descripcion: str, folio:str, escritura: str, cliente: str, abg:str):
         """
@@ -286,4 +290,4 @@ class Documentos(Base):
         with open(ruta, "w", encoding="utf-8") as f:
             json.dump(data_ordenada, f, indent=4, ensure_ascii=False)
 
-        print(f"Papelería guardada con contadores en: {ruta}")
+        logger.info("Papelería guardada con contadores en: {}", ruta)

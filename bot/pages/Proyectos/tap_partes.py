@@ -1,17 +1,13 @@
 # bot/pages/projects_partes.py
 from __future__ import annotations
 
-import time
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from ..base_page import BasePage
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import StaleElementReferenceException
+from bot.utils.common_imports import *
+from bot.utils.base import Base
+from bot.utils.selenium_imports import *
 
 
 
-class partesTap(BasePage):
+class partesTap(Base):
     """
     Acciones dentro de la pestaña 'Partes' del formulario de 'Nuevo Proyecto'.
     """

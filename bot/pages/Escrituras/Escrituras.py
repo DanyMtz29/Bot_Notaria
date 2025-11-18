@@ -1,50 +1,46 @@
 
-import re, time
-from selenium.webdriver.support import expected_conditions as EC
+from bot.utils.selenium_imports import *
+from bot.utils.common_imports import *
 from bot.utils.base import Base
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-
+import re
 
 class Escritura(Base):
     def open_url_deeds(self, url:str):
         """
             Abre https://not84.singrafos.com/deeds
         """
-        try:
-            full_url = url.rstrip("/") + "/deeds"
-            self.driver.get(full_url)
-            # Esperar que cargue el 'projects'
-            self.wait.until(EC.url_contains("/deeds"))
-            print("Escrituras cargado correctamente.")
-        except Exception as e:
-            print(f"Error al cargar escrituras: {e}")
-            return
+        #try:
+        full_url = url.rstrip("/") + "/deeds"
+        self.driver.get(full_url)
+        # Esperar que cargue el 'projects'
+        self.wait.until(EC.url_contains("/deeds"))
+        # except Exception as e:
+        #     logger.error(f"Error al cargar escrituras: {e}")
+        #     return
         
     def buscarProyecto(self, descripcion):
         """
             Coloca el nombre en el input del dashboard del portal
         """
         # Esperar campo de búsqueda por placeholder
-        try:
-            input_buscar = self.wait.until(EC.visibility_of_element_located((By.XPATH,"//input[contains(@placeholder,'Buscar por Escritura, Descripción, Cliente, o Abogado...')]")))
+        #try:
+        input_buscar = self.wait.until(EC.visibility_of_element_located((By.XPATH,"//input[contains(@placeholder,'Buscar por Escritura, Descripción, Cliente, o Abogado...')]")))
 
-            # Asegurar que también esté interactuable
-            self.wait.until(EC.element_to_be_clickable((By.XPATH,"//input[contains(@placeholder,'Buscar por Escritura, Descripción, Cliente, o Abogado...')]")))
+        # Asegurar que también esté interactuable
+        self.wait.until(EC.element_to_be_clickable((By.XPATH,"//input[contains(@placeholder,'Buscar por Escritura, Descripción, Cliente, o Abogado...')]")))
 
-            # Limpiar la descripción
-            descripcion = re.sub(r"[-–—]+", " ", descripcion).strip()
-            descripcion = re.sub(r"[\"“”']", "", descripcion).strip()
+        # Limpiar la descripción
+        descripcion = re.sub(r"[-–—]+", " ", descripcion).strip()
+        descripcion = re.sub(r"[\"“”']", "", descripcion).strip()
 
-            # Escribir y presionar ENTER
-            input_buscar.clear()
-            input_buscar.send_keys(descripcion)
-            input_buscar.send_keys(Keys.ENTER)
-            print("Campo de búsqueda detectado y texto enviado correctamente.")
-            time.sleep(2)
-        except Exception as e:
-            print(f"No se detectó el campo de búsqueda: {e}")
-            return
+        # Escribir y presionar ENTER
+        input_buscar.clear()
+        input_buscar.send_keys(descripcion)
+        input_buscar.send_keys(Keys.ENTER)
+        time.sleep(2)
+        # except Exception as e:
+        #     print(f"No se detectó el campo de búsqueda: {e}")
+        #     return
     
     def subir_adjunto(self):
         try:
@@ -77,18 +73,18 @@ class Escritura(Base):
             By.XPATH, "//kendo-dropdownlist//span[contains(@class,'k-input-value-text')]"
         ), documento))
 
-        print(f"✔ Tipo de Documento seleccionado correctamente: {documento}")
+        #print(f"✔ Tipo de Documento seleccionado correctamente: {documento}")
 
     def subir_documento(self,ruta_archivo: str):
-        try:
-            inp = self.wait.until(EC.presence_of_element_located((
-                By.XPATH, "//input[@type='file' and @id='deedDocument']"
-            )))
-            inp.send_keys(ruta_archivo)
+        #try:
+        inp = self.wait.until(EC.presence_of_element_located((
+            By.XPATH, "//input[@type='file' and @id='deedDocument']"
+        )))
+        inp.send_keys(ruta_archivo)
 
-            print(f"✔ Archivo cargado correctamente: {ruta_archivo}")
-        except Exception as e:
-            print(f"No se pudo cargar el archivo: {e}")
+        print(f"✔ Archivo cargado correctamente: {ruta_archivo}")
+        # except Exception as e:
+        #     print(f"No se pudo cargar el archivo: {e}")
     def set_descripcion(self,cliente: str):
         descripcion = self.wait.until(EC.element_to_be_clickable((
             By.XPATH, "//textarea[@id='description']"
@@ -96,7 +92,7 @@ class Escritura(Base):
         descripcion.clear()
         descripcion.send_keys(cliente)
 
-        print(f"✔ Descripción establecida: {cliente}")
+        #print(f"✔ Descripción establecida: {cliente}")
     
     def click_cancelar(self):
         boton_cancelar = self.wait.until(EC.element_to_be_clickable((

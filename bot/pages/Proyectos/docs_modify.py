@@ -1,12 +1,11 @@
 from __future__ import annotations
-import re, time
-from selenium.webdriver.common.keys import Keys
+
 from bot.utils.base import Base
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
+from bot.utils.common_imports import *
+from bot.utils.selenium_imports import *
 from bot.core.faltantes import FaltantesService
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.support.ui import Select
+
+from bot.utils.common_imports import *
 
 #Posibles quites
 from bot.pages.projects_documents import ProjectsDocumentsPage
@@ -18,26 +17,29 @@ class tapModify(Base):
             Coloca el nombre en el input del dashboard del portal
         """
         # Esperar campo de búsqueda por placeholder
-        try:
-            input_buscar = self.wait.until(EC.visibility_of_element_located((By.XPATH,"//input[contains(@placeholder,'Buscar por Folio, Descripción, Cliente, o Abogado...')]")))
+        #try:
+        input_buscar = self.wait.until(EC.visibility_of_element_located((By.XPATH,"//input[contains(@placeholder,'Buscar por Folio, Descripción, Cliente, o Abogado...')]")))
 
-            # Asegurar que también esté interactuable
-            self.wait.until(EC.element_to_be_clickable((By.XPATH,"//input[contains(@placeholder,'Buscar por Folio, Descripción, Cliente, o Abogado...')]")))
+        # Asegurar que también esté interactuable
+        self.wait.until(EC.element_to_be_clickable((By.XPATH,"//input[contains(@placeholder,'Buscar por Folio, Descripción, Cliente, o Abogado...')]")))
 
-            # Limpiar la descripción
-            descripcion = re.sub(r"[-–—]+", " ", descripcion).strip()
-            descripcion = re.sub(r"[\"“”']", "", descripcion).strip()
+        # Limpiar la descripción
+        descripcion = re.sub(r"[-–—]+", " ", descripcion).strip()
+        descripcion = re.sub(r"[\"“”']", "", descripcion).strip()
 
-            # Escribir y presionar ENTER
-            input_buscar.clear()
-            input_buscar.send_keys(descripcion)
-            input_buscar.send_keys(Keys.ENTER)
-            print("Campo de búsqueda detectado y texto enviado correctamente.")
-            time.sleep(2)
-        except Exception as e:
-            print(f"No se detectó el campo de búsqueda: {e}")
-            return
-        
+        # Escribir y presionar ENTER
+        input_buscar.clear()
+        input_buscar.send_keys(descripcion)
+        input_buscar.send_keys(Keys.ENTER)
+        time.sleep(2)
+        # except Exception as e:
+        #     logger.error(f"No se detectó el campo de búsqueda: {e}")
+        #     return
+
+    def limpiar_busqueda_proyecto(self):
+        tacha = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'sin-btn-close')]/i[contains(@class,'fa-times')]")))
+        tacha.click()
+    
     def presionar_lupa_nombre(self):
         """Simplemente presiona la lupa del portal del nombre buscado"""
         lupa = self.wait.until(EC.element_to_be_clickable((By.XPATH,"//table//i[contains(@class,'fa-search')]/ancestor::a[contains(@class,'btn-light')]")))
@@ -55,12 +57,9 @@ class tapModify(Base):
         """
             Presiona el boton modificar en la parte de proyectos (ya creado)
         """
-        try:
-            boton_modificar = self.wait.until(EC.element_to_be_clickable((By.XPATH,"//a[contains(@class,'btn-primary') and contains(@href,'/projects/edit')]")))
-            self.driver.execute_script("arguments[0].click();", boton_modificar)
-            print(" Botón 'Modificar' presionado correctamente.")
-        except Exception as e:
-            print(f" No se pudo presionar el botón 'Modificar': {e}")
+        boton_modificar = self.wait.until(EC.element_to_be_clickable((By.XPATH,"//a[contains(@class,'btn-primary') and contains(@href,'/projects/edit')]")))
+        self.driver.execute_script("arguments[0].click();", boton_modificar)
+            
     
     def subir_documentos(self, archivos_para_subir, contadores) -> None:
         #Esperar a que llegue a la pagina de subir dpcumentos
@@ -107,8 +106,8 @@ class tapModify(Base):
             EC.presence_of_element_located((By.XPATH, "//span[contains(@class,'badge-project')]")))
 
         if "revisión" in status:
-            print("⛔ El proyecto está EN REVISIÓN, no se puede modificar.")
+            logger.info("⛔ El proyecto está EN REVISIÓN, no se puede modificar.")
             return True
         else:
-            print("✅ Proyecto no está en revisión, continuar.")
+            logger.info("✅ Proyecto no está en revisión, continuar.")
             return False
