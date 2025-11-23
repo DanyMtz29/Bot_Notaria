@@ -314,6 +314,11 @@ class ActoResolver:
             dbg["via"] = "rule_cv_fovissste"
             return "COMPRAVENTA FOVISSSTE", escritura, dbg
 
+        # Compraventa + INFONAVIT (regla fuerte similar a FOVISSSTE)
+        if "infonavit" in cand_tokens and ("compraventa" in cand_tokens or "compra" in cand_tokens or "venta" in cand_tokens or "cv" in cand_tokens):
+            dbg["via"] = "rule_cv_infonavit"
+            return "COMPRAVENTA INFONAVIT", escritura, dbg
+
         # Carta + Permiso
         if "carta" in cand_tokens and "permiso" in cand_tokens:
             dbg["via"] = "rule_carta_permiso"

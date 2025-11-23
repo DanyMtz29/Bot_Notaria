@@ -27,14 +27,24 @@ class Cliente(Base):
         self.CP.assert_loaded()
 
         time.sleep(1)
-        found = self.CP.search_by_name(party["nombre_upper"], timeout=12)
+        found = self.CP.search_by_name(party["rfc"], timeout=12)
         time.sleep(1)
         if found:
             logger.info("Cliente EXISTE en Singrafos: {}", party["nombre_upper"])
+            nombre = self.driver.find_element(By.XPATH, "//div[contains(@class,'k-grid-content')]//table//tr[1]/td[1]")
+            party["nombre"] = nombre.text.upper()
             self._descargar_uif_existente(party)
         else:
             logger.info("Cliente NO existe, creando por IdCIF... [{}]", party.get("idcif", "sin IdCIF"))
-            self._crear_cliente_por_idcif(party)
+            if not self._crear_cliente_por_idcif(party):
+                """
+                    Crear cliente manualmente
+                    self.crearClienteManual(party)
+
+                    Correccion:
+                    VERIFICAR EL TOAST DE INCORRECTO
+                """
+                
             self._descargar_uif_existente(party)
 
 
@@ -81,7 +91,7 @@ class Cliente(Base):
             botones = self.driver.find_elements(By.XPATH, XPATH_HIST)
             return botones[-1]
 
-    def _crear_cliente_por_idcif(self, party):
+    def _crear_cliente_por_idcif(self, party) -> bool:
         self.CP.click_new()
         logger.success("Formulario 'Nuevo Cliente' abierto.")
 
@@ -94,13 +104,17 @@ class Cliente(Base):
             (party.get("idcif") or "").strip()
         )
 
+        self.check_incorrecto()
+
         try:
             modal.click_create_customer(timeout=25)
             confirm = CustomersCreateConfirmModal(self.driver, self.wait)
             confirm.confirm_without_email(timeout=25)
             logger.success("Cliente creado por IdCIF.")
+            return True
         except Exception as e:
             logger.warning(f"No se pudo completar creación automática: {e}")
+            return False
 
 
     def _safe_pdf_name(self, party: Dict[str, str]) -> str:
@@ -108,3 +122,16 @@ class Cliente(Base):
         # Limpia caracteres raros para nombre de archivo
         cleaned = "".join(ch if ch.isalnum() or ch in (" ", "-", "_") else "_" for ch in base)
         return cleaned.replace("  ", " ").replace(" ", "_")
+    
+    def crearClienteManual(self, party):
+        """
+            crea el cliente en el portal manualmente por medio de todos los datos que 
+            se pueden abstraer
+        """
+    
+    def check_incorrecto(self) -> None:
+        try:
+            toast = self.wait.until(EC.visibility_of_element_located((By.XPATH,"//div[@id='toast-container']//div[contains(@class,'toast')]//div[contains(.,'Información incorrecta')]")))
+            print("🔥 Se activó el toast de error del SAT")
+        except:
+            print("No apareció el toast")

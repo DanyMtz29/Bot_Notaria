@@ -35,6 +35,7 @@ class Persona:
     rfc: Optional[str] = None
     idcif: Optional[str] = None
     docs: DocumentoPaths = field(default_factory=DocumentoPaths)
+    uif: Optional[str] = None  # Ruta al documento UIF
 
 @dataclass
 class PersonaFisica:
@@ -50,6 +51,11 @@ class Sociedad:
     idcif: Optional[str] = None           # idCIF de la sociedad (nuevo)
     representante: Optional[Persona] = None
     docs: DocumentoPaths = field(default_factory=DocumentoPaths)
+
+    # Documentos de banco (solo si es_banco = True)
+    es_banco: bool = False
+    carta_instruccion: Optional[str] = None   
+    uif: Optional[str] = None
 
 @dataclass
 class Inmueble:
@@ -96,6 +102,7 @@ class ActoExtraction:
                         "INE": pf.persona.docs.INE,
                         "COMP_DOMICILIO": pf.persona.docs.COMP_DOMICILIO,
                         "ACTA_MATRIMONIO": pf.persona.docs.ACTA_MATRIMONIO,
+                        "UIF": "",
                     }
                 },
                 "esposa_o_esposo": None if not pf.esposa_o_esposo else {
@@ -109,6 +116,7 @@ class ActoExtraction:
                         "INE": pf.esposa_o_esposo.docs.INE,
                         "COMP_DOMICILIO": pf.esposa_o_esposo.docs.COMP_DOMICILIO,
                         "ACTA_MATRIMONIO": pf.esposa_o_esposo.docs.ACTA_MATRIMONIO,
+                        "UIF": "",
                     }
                 }
             }
@@ -138,7 +146,10 @@ class ActoExtraction:
                     "PODER_REPRESENTANTE": pm.docs.PODER_REPRESENTANTE,
                     "ASAMBLEAS": pm.docs.ASAMBLEAS,
                     "OTROS": pm.docs.OTROS,
-                }
+                },
+                "es_banco": pm.es_banco,
+                "CARTA_INSTRUCCION": pm.docs.carta_instruccion,
+                "UIF": "",
             }
 
         return {

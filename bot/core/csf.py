@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Optional, Tuple, Iterable
 from loguru import logger
+from bot.core.csf_ocr import ExtractorCSF
 
 try:
     import fitz  # PyMuPDF
@@ -184,19 +185,10 @@ def extract_csf_fields(path: str):
 
     # 2) Fallback a EasyOCR si no hay texto o faltó todo
     if (not has_text) or (not any([rfc, idcif, nombre])):
-        csf = _get_csf_scanner()
-        if csf is not None:
-            logger.info("Usando EasyOCR fallback (sin Tesseract) en {}", path)
-            try:
-                nombre_ocr, rfc_ocr, idcif_ocr = csf.scan(path)
-                # Solo pisar si faltaban datos
-                rfc = rfc or rfc_ocr
-                idcif = idcif or idcif_ocr
-                nombre = nombre or nombre_ocr
-                logger.debug("CSF OCR -> RFC={}, idcif={}, nombre={}", rfc, idcif, nombre)
-            except Exception as e:
-                logger.error("Error usando CSFScanner en {}: {}", path, e)
-        else:
-            logger.warning("No está disponible CSFScanner para OCR, se mantiene lo extraído por texto.")
+        extr = ExtractorCSF()
+        datos = extr.extraer_datos_csf(path)
+        rfc = datos.get("rfc","")
+        idcif = datos.get("idcif", "")
+        nombre = datos.get("nombre_completo","")
 
     return rfc, idcif, nombre

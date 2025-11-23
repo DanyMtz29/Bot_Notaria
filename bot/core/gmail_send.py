@@ -27,7 +27,7 @@ def get_gmail_service():
             creds.refresh(Request())
         else:
             if not os.path.exists(creds_path):
-                raise FileNotFoundError("⚠️ Falta el archivo credentials.json en bot/config/")
+                raise FileNotFoundError("Falta el archivo credentials.json en bot/config/")
             flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
             creds = flow.run_local_server(port=0)
         with open(token_path, "wb") as token:
@@ -51,8 +51,8 @@ def send_email(to: str, subject: str, body_html: str, body_text: str | None = No
 
     try:
         sent = service.users().messages().send(userId="me", body={"raw": raw_message}).execute()
-        logger.success(f"✅ Correo enviado correctamente a {to}. ID: {sent['id']}")
+        logger.success(f"Correo enviado correctamente a {to}. ID: {sent['id']}")
         return sent
     except Exception as e:
-        logger.error(f"❌ Error al enviar correo a {to}: {e}")
+        logger.error(f"Error al enviar correo a {to}: {e}")
         return None

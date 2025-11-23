@@ -16,6 +16,13 @@ IGNORED_DIRS = {
 }
 IGNORED_PREFIXES = ("SubActo", "Subacto", "subacto", "Generados_", "~$")
 
+bancos_keywords = [
+    "bbva", "banorte", "santander", "hsbc",
+    "scotiabank", "banregio", "citibanamex",
+    "infonavit", "fovissste", "sofom", "sofol",
+    "banco"
+]
+
 def _is_ignored_dir(name: str) -> bool:
     if name in IGNORED_DIRS:
         return True
@@ -142,6 +149,14 @@ def _scan_sociedad(soc_dir: str, rol: str) -> Sociedad:
     d.OTROS = ActosFinder.find_otros_sociedad(soc_dir)
     s.docs = d
 
+    #NUEVO PARA VER SI ES UN BACNO===============================
+    nombre_lower = s.nombre.lower() if s.nombre else ""
+
+    if any(k in nombre_lower for k in bancos_keywords):
+        s.es_banco = True
+        s.carta_instruccion = ActosFinder.find_carta_instruccion(soc_dir)
+    #AQUI TERMINA LO DE PARA VER SI ES BANCO=================================
+
     # Nombre completo + RFC/idCIF **desde CSF de la sociedad**
     if d.CSF_SOCIEDAD:
         try:
@@ -151,6 +166,8 @@ def _scan_sociedad(soc_dir: str, rol: str) -> Sociedad:
             s.idcif = idcif_soc or s.idcif
         except Exception as e:
             logger.warning("No se pudo parsear CSF PM {}: {}", d.CSF_SOCIEDAD, e)
+
+    
 
     # Representante PF (con su propio nombre desde su CSF)
     rep_folder = ActosFinder.find_representante_folder(soc_dir)

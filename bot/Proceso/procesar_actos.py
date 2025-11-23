@@ -1,9 +1,10 @@
 from bot.utils.common_imports import *
+import shutil
+
 from bot.JSON.procesar_folder import Folder
 from bot.core.acto_detector import ActoResolver
 from bot.core.faltantes import FaltantesService
 from bot.core.acto_scanner import scan_acto_folder
-
 from bot.pages.Proyectos.procesar_cliente import Cliente
 from bot.pages.Proyectos.tap_partes import partesTap
 from bot.pages.Proyectos.tap_general import generalTap
@@ -11,14 +12,14 @@ from bot.pages.projects_documents import ProjectsDocumentsPage
 from bot.Proceso.procesar_papeleria import Documentos
 from bot.pages.Proyectos.docs_modify import tapModify
 from bot.pages.Escrituras.Escrituras import Escritura
-import shutil
+
 
 def procesar_actos(driver, wait,abogado, actos_root):
     """
         Proceso que recorre el portal por todos los proyectos de cada abogado
     """
     it = 1
-    attempts =3
+    attempts = 1
     for acto in os.listdir(actos_root):
         full = os.path.join(actos_root, acto)
         if not os.path.isdir(full):# Ignorar archivos sueltos que no sean carpetas de acto
@@ -49,12 +50,12 @@ def procesar_actos(driver, wait,abogado, actos_root):
                     print(f"Reintento {attempts}")
                     time.sleep(2)
         time.sleep(3)
-        if it > 1:
+        if it > 0:
             break
         attempts = 3
         it+=1
         logger.error("REINTENTANDO")
-    print("TERMINA")
+    input("Presiona cualquier tecla para terminar...")
 
 def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str) -> None:
     """

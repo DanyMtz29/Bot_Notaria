@@ -241,6 +241,17 @@ class ActosFinder:
         return found or []
 
     @staticmethod
+    def find_carta_instruccion(folder: str) -> List[str]:
+        import re
+        regexes = [
+            re.compile(r"\bcarta\b"),
+            re.compile(r"\binstruccion\b"),
+            re.compile(r"\bcarta\s+de\s+instruccion\b"),
+        ]
+        found = ActosFinder._find_by_criteria(folder, DOC_EXTS, regexes=regexes, multiple=True)
+        return found or []
+
+    @staticmethod
     def find_otros_sociedad(folder: str) -> List[str]:
         """Cualquier doc que no matchee explícitos comunes. Útil para guardarlo en OTROS."""
         try:
