@@ -52,8 +52,17 @@ def proceso_por_abogado(headless: bool) -> None:
     
     driver, wait = make_driver(headless=headless, page_load_timeout=60, wait_timeout=7)
 
-    LoginPage(driver,wait).login(user,pwd)
-    logger.success("Login OK")
+    attempts = 3
+    while attempts > 0:
+        try:
+            LoginPage(driver,wait).login(user,pwd)
+            logger.success("Login OK")
+            break
+        except Exception as e:
+            attempts -= 1
+            logger.error(f"Error en login: {e}. Reintentando... ({attempts} intentos restantes)")
+            time.sleep(2)
+        
 
     for abogado in os.listdir(abogados_root):
         procesar_actos(driver,wait,abogado,os.path.abspath(os.path.join(abogados_root,abogado)))

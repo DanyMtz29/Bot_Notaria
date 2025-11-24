@@ -127,9 +127,20 @@ class Folder:
                 or ""
             )
             docs = self._get(pf_obj, "docs") or self._get(persona, "docs")
+            esposa_o_esposo = self._get(pf_obj, "esposa_o_esposo") or self._get(persona, "esposa_o_esposo")
+            if esposa_o_esposo:
+                esposa_o_esposo = {
+                    "esposa_o_esposo": True,
+                    "rol": rol,
+                    "nombre": self._get(esposa_o_esposo, "nombre", "").strip(),
+                    "rfc": self._get(esposa_o_esposo, "rfc", "").strip(),
+                    "idcif": self._get(esposa_o_esposo, "idcif", "").strip(),
+                    "docs": self._get(esposa_o_esposo, "docs"),
+                }
             if not nombre:
                 return None
-            return {"tipo": "PF", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": str(idcif).strip(), "docs": docs}
+            return {"tipo": "PF", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": str(idcif).strip(), "docs": docs,
+                    "esposa_o_esposo": esposa_o_esposo}
         except Exception:
             return None
 
@@ -140,9 +151,29 @@ class Folder:
             nombre = (self._get(pm_obj, "nombre") or self._get(pm_obj, "razon_social") or "").strip()
             rfc = (self._get(pm_obj, "rfc") or "").strip()
             idcif = (self._get(pm_obj, "idcif") or self._get(pm_obj, "IdCIF") or self._get(pm_obj, "IDCIF") or "").strip()
+            docs = self._get(pm_obj, "docs")
+            es_banco = self._get(pm_obj, "es_banco") or False
+            carta_instruccion = self._get(pm_obj, "carta_instruccion")
+            representante = self._get(pm_obj, "representante")
+            if representante:
+                representante = {
+                    "representante": True,
+                    "rol": rol,
+                    "nombre": (self._get(representante, "nombre") or "").strip(),
+                    "rfc": (self._get(representante, "rfc") or "").strip(),
+                    "idcif": (
+                        self._get(representante, "idcif")
+                        or self._get(representante, "IdCIF")
+                        or self._get(representante, "IDCIF")
+                        or ""
+                    ),
+                    "docs": self._get(representante, "docs")
+                }
             if not nombre:
                 return None
-            return {"tipo": "PM", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": idcif}
+            return {"tipo": "PM", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": idcif,
+                    "docs": docs, "es_banco": es_banco, "carta_instruccion": carta_instruccion,
+                    "representante": representante}
         except Exception:
             return None
 

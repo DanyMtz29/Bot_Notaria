@@ -13,14 +13,36 @@ class Cliente(Base):
     def __init__(self, driver, wait):
         super().__init__(driver, wait)
         self.CP = ClientsPage(driver,wait)
-        self.lista_uifs = []
 
     def procesar_partes(self, partes) -> list[str]:
-        for idx, party in enumerate(partes, start=1):
-            if party.get('tipo') == "PM":
-                self.procesar_cliente(party.get("representante"))
-            self.procesar_cliente(party)
-        return self.lista_uifs
+        clientes = []
+        for parte in partes:
+            if parte.get("tipo") == "PM":
+                clientes.append(parte.get("representante", {}))
+            else:
+                if parte.get("esposa_o_esposo"):
+                    clientes.append(parte.get("esposa_o_esposo", {}))
+            clientes.append(parte)
+
+        for cl in clientes:
+            self.CP.open_direct(self.url)
+            self.CP.assert_loaded()
+            try:
+                tacha = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'sin-btn-close')]/i[contains(@class,'fa-times')]")))
+                tacha.click()
+                time.sleep(2)
+            except Exception:
+                pass
+            self.procesar_cliente(cl)
+
+        
+        # for idx, party in enumerate(partes, start=1):
+        #     if party.get('tipo') == "PM":
+        #         self.procesar_cliente(party.get("representante"))
+        #     else:
+        #         if party.get("esposa_o_esposo"):
+        #             self.procesar_cliente(party.get("esposa_o_esposo"))
+        #     self.procesar_cliente(party)
 
     def procesar_cliente(self, party) -> None:
         self.CP.open_direct(self.url)
@@ -30,7 +52,7 @@ class Cliente(Base):
         found = self.CP.search_by_name(party["rfc"], timeout=12)
         time.sleep(1)
         if found:
-            logger.info("Cliente EXISTE en Singrafos: {}", party["nombre_upper"])
+            logger.info("Cliente EXISTE en Singrafos: {}", party["nombre"])
             nombre = self.driver.find_element(By.XPATH, "//div[contains(@class,'k-grid-content')]//table//tr[1]/td[1]")
             party["nombre"] = nombre.text.upper()
             self._descargar_uif_existente(party)
@@ -53,7 +75,7 @@ class Cliente(Base):
         logger.info("Detalle de cliente abierto (lupita).")
 
         self.wait.until(
-        EC.text_to_be_present_in_element((By.XPATH,"//h4[contains(@class,'page-title')]""//small[contains(@class,'fw-lighter')]"),party["nombre_upper"]))
+        EC.text_to_be_present_in_element((By.XPATH,"//h4[contains(@class,'page-title')]""//small[contains(@class,'fw-lighter')]"),party["nombre"]))
 
         cdp = CustomerDetailPage(self.driver, self.wait)
         cdp.click_busqueda_uif(timeout=20)
@@ -66,7 +88,7 @@ class Cliente(Base):
 
         nombre_pdf = self._safe_pdf_name(party)
         pdf = UifModal(self.driver, self.wait).renombrar_ultimo_pdf(nombre_pdf)
-        self.lista_uifs.append(pdf)
+        party["uif"] = pdf[-1]
 
         logger.success("UIF descargado y renombrado.")
 
@@ -118,7 +140,7 @@ class Cliente(Base):
 
 
     def _safe_pdf_name(self, party: Dict[str, str]) -> str:
-        base = f"{party.get('tipo','')}_{party.get('rol','')}_{party.get('nombre_upper','')}".strip("_")
+        base = f"{party.get('tipo','')}_{party.get('rol','')}_{party.get('nombre','')}".strip("_")
         # Limpia caracteres raros para nombre de archivo
         cleaned = "".join(ch if ch.isalnum() or ch in (" ", "-", "_") else "_" for ch in base)
         return cleaned.replace("  ", " ").replace(" ", "_")
@@ -131,7 +153,8 @@ class Cliente(Base):
     
     def check_incorrecto(self) -> None:
         try:
-            toast = self.wait.until(EC.visibility_of_element_located((By.XPATH,"//div[@id='toast-container']//div[contains(@class,'toast')]//div[contains(.,'Información incorrecta')]")))
+            self.wait.until(EC.visibility_of_element_located((By.XPATH,"//div[@id='toast-container']//div[contains(@class,'toast')]//div[contains(.,'Información incorrecta')]")))
             print("🔥 Se activó el toast de error del SAT")
         except:
             print("No apareció el toast")
+        

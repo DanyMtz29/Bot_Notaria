@@ -20,15 +20,33 @@ class Documentos(Base):
         # print("CHECAR OCULTO: ")
         # print(oculto.get_attribute("outerHTML"))
 
-    def subir_lista_uifs(self, listas_uif: list) -> None:
+    def subir_lista_uifs(self, partes) -> bool:
         inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
-
-        #Listas_uifs de prueba
-        # listas_uif = [["UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf",r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Enajenante_ALFREDO_ALBERTO_PALACIOS_RODRIGUEZ.pdf"],
-        #             ["UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf", r"C:\Users\mdani\OneDrive\Desktop\Botbi\Bot Notaria Publica 84\bot\_cache_bot\UIF_PF_Adquiriente_JUAN_ANTONIO_MURRA_GONZALEZ.pdf"]]
         
-        for uif in listas_uif:
-            inp.send_keys(uif[1])
+        clientes = []
+        for parte in partes:
+            if parte.get("tipo") == "PM":
+                clientes.append(parte.get("representante", {}))
+            else:
+                if parte.get("esposa_o_esposo"):
+                    clientes.append(parte.get("esposa_o_esposo"))
+            clientes.append(parte)
+        
+        flag = True
+
+        for cl in clientes:
+            print(f"Cliente: {cl.get('nombre','')} - UIF: {cl.get('uif','')}\n")
+            if not cl.get("uif"):
+                #add_coment(cl.get("nombre"), "Consulta UIF Lista Negra")
+                tup = ("PF",cl.get("nombre"), cl.get('rol'))
+                if tup in self.lista_comentarios:
+                    self.lista_comentarios[tup].append("Consulta UIF Lista Negra")
+                else:
+                    self.lista_comentarios[tup] = ["Consulta UIF Lista Negra"]
+                flag = False
+                continue
+            
+            inp.send_keys(cl.get("uif"))
             #time.sleep(3)
             self.esperar_subida()
             #Seleccionar la fila del archivo que se subio
@@ -37,9 +55,11 @@ class Documentos(Base):
             fila = filas[-1]
             #Seleccionar la columan 2, que es el 'Documento' y establecer que tipo de documento
             Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text("Consulta UIF Lista Negra")
+            fila.find_element(By.XPATH, ".//td[4]//input").send_keys(cl.get("nombre"))
             #Seleccionar el cliente que corresponde esa papeleria
             self.driver.execute_script("arguments[0].value = '';", inp)#Remover los elementos anteriores
             time.sleep(1)
+        return flag
 
     def subir_doc_inmuebles(self, inmuebles: list, doc:str) -> bool:
         """
@@ -56,10 +76,10 @@ class Documentos(Base):
                 filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
                 fila = filas[-1]
                 Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc)
+                fila.find_element(By.XPATH, ".//td[4]//input").send_keys(inm.get_name())
                 self.driver.execute_script("arguments[0].value = '';", inp)
                 time.sleep(1)
             else:
-                #add_coment(inm.get_name(), doc)
                 tup = ("INM",inm.get_name(), 'INM')
                 if tup in self.lista_comentarios:
                     self.lista_comentarios[tup].append(doc)
@@ -68,7 +88,68 @@ class Documentos(Base):
                 flag = False
         return flag
 
-    def subir_doc_partes_basicas(self,clientes: list, doc: str) -> None:
+    def add_coment(self, parte: tuple, doc:str) -> None:
+        if parte in self.lista_comentarios:
+            self.lista_comentarios[parte].append(doc)
+        else:
+            self.lista_comentarios[parte] = [doc]
+
+    def subir_doc(self, doc_up: str, parte:dict, doc_original: str) -> None:
+        inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
+        inp.send_keys(doc_up)
+        self.esperar_subida()
+        filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
+        fila = filas[-1]
+        Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
+        Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(parte.get("nombre"))
+        self.driver.execute_script("arguments[0].value = '';", inp)
+        time.sleep(1)
+
+    def subir_papeleria_sociedad(self, partes: list, doc: str) -> bool:
+        doc_original = doc
+        if doc == "Acta constitutiva (antecedente)": doc = "ACTA_CONSTITUTIVA"
+        elif doc == "Poder del representante legal": doc = "PODER_REPRESENTANTE"
+        elif doc == "Asambleas antecedente de la sociedad": doc = "ASAMBLEAS"
+        elif doc == "Constancia de identificación fiscal Sociedad": doc = "CSF_SOCIEDAD"
+        elif doc == "Carta de instrucción vigente": doc = "carta_instruccion"
+
+        #Subida de los documentos al portal
+        inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
+        flag = True
+        for parte in partes:
+            if parte.get("tipo") == "PM":
+                if doc == "CSF_SOCIEDAD" or doc == "ACTA_CONSTITUTIVA":
+                    if self.checar_docs_importar(parte.get("nombre"), doc_original):
+                        time.sleep(1)
+                    else:
+                        docs = parte.get("docs")
+                        doc_up = docs.get(doc)
+                        if doc_up == None:
+                            self.add_coment(("PF",parte.get("nombre"), parte.get('rol')), doc_original)
+                            flag = False
+                        else:
+                            self.subir_doc(doc_up, parte, doc_original)
+                elif doc == "ASAMBLEAS":
+                    self.checar_docs_importar_varios(parte.get("nombre"), doc_original)
+                    docs = parte.get("docs")
+                    asambleas = docs.get(doc)
+                    for asam in asambleas:
+                        self.subir_doc(asam, parte, doc_original)
+                elif doc == "carta_instruccion":
+                    docs = parte.get("docs")
+                    doc_up = docs.get(doc)
+                    es_banco = parte.get("es_banco", False)
+                    if doc_up == None and es_banco:
+                        self.add_coment(("PF",parte.get("nombre"), parte.get('rol')), doc_original)
+                        flag = False
+                    else:
+                        self.subir_doc(doc_up, parte, doc_original)
+
+        return flag
+                    
+
+
+    def subir_doc_partes_basicas(self,partes: list, doc: str) -> None:
         """
             Sube solo los docus basicos de las partes: CURP, ACTA DE NACIMIENTO, COMP_DOM, CSF, INE
         """
@@ -82,12 +163,18 @@ class Documentos(Base):
 
         inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
         flag = True
+
+        clientes = []
+        for parte in partes:
+            if parte.get("tipo") == "PM":
+                clientes.append(parte.get("representante", {}))
+            else:
+                if parte.get("esposa_o_esposo"):
+                    clientes.append(parte.get("esposa_o_esposo"))
+                clientes.append(parte)
+
         for part in clientes:
-
-            if part.get("tipo") == "PM":
-                part = part.get("representante", {})
-                #Primero chechar si no esta en importados
-
+            #Primero chechar si no esta en importados
             if self.checar_docs_importar(part.get("nombre"), doc_original):
                 time.sleep(1)
             else:
@@ -113,6 +200,87 @@ class Documentos(Base):
                     time.sleep(1)
         return flag
     
+    def checar_docs_importar_varios(self, cliente: str, doc: str) -> None:
+        """
+            Debe de checar si hay varias opciones de documento en el portal
+            y seleccionar todas a importar
+        """
+        wait = WebDriverWait(self.driver, 20)
+
+        # Click en "Importar" (usa wait + JS por si hay overlay)
+        but = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@class='col-md-10']//div[@class='text-end']//button[@type='button']")))
+        self.driver.execute_script("arguments[0].click();", but)
+
+        #Espera un poco para que cargue la ventana de importacion
+        time.sleep(2)
+
+        # Espera a que el modal esté visible
+        modal_body = wait.until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class,'modal-body')]")))
+
+        # Ubica el bloque (tabla) del cliente
+        table = modal_body.find_element(
+            By.XPATH,
+            f".//div[contains(@class, 'form-group') and contains(@class, 'row')][.//label[normalize-space(text())='{cliente}']]"
+        )
+
+        # Dentro de la tabla, la sección de filas
+        rowgroup = table.find_element(By.XPATH, ".//tbody[contains(@role,'rowgroup')]")
+
+        # Locator para todas las filas que contengan el doc (case-insensitive robusto)
+        # Nota: usamos contains(., '{doc}') directo; si necesitas 100% insensible a may/min, podemos meter translate().
+        rows_locator = (
+            By.XPATH,
+            f".//tr[.//td[contains(., '{doc}')]]"
+        )
+
+        # Espera a que existan (o determina que no hay)
+        docs_ = rowgroup.find_elements(*rows_locator)
+        si_hay = len(docs_) > 0
+        if not si_hay:
+            # Cierra el modal y salimos
+            cerrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space()='Regresar']")))
+            self.driver.execute_script("arguments[0].click();", cerrar)
+
+        # Selecciona robustamente TODOS los rows encontrados (no solo el último).
+        # Reobtenemos la lista antes de cada intento para tolerar StaleElementReference.
+        selected_texts = []
+        rows = rowgroup.find_elements(*rows_locator)
+        for idx in range(len(rows)):
+            # Intentos por fila para tolerar stale elements
+            tries = 3
+            for attempt in range(tries):
+                try:
+                    rows_fresh = rowgroup.find_elements(*rows_locator)
+                    if idx >= len(rows_fresh):
+                        # La fila ya no existe (quizá fue removida); saltar
+                        break
+                    row = rows_fresh[idx]
+
+                    # Intentamos leer el texto para registro (puede stale)
+                    try:
+                        selected_texts.append(row.text)
+                    except StaleElementReferenceException:
+                        if attempt == tries - 1:
+                            raise
+                        continue
+
+                    cb = row.find_element(By.XPATH, ".//td[1]//input[@type='checkbox']")
+                    wait.until(EC.element_to_be_clickable(cb))
+                    # Click via JS para evitar interceptaciones
+                    self.driver.execute_script("arguments[0].click();", cb)
+                    break
+                except StaleElementReferenceException:
+                    if attempt == tries - 1:
+                        raise
+                    # pequeño backoff antes de reintentar
+                    time.sleep(0.15)
+                    continue
+
+        # Cierra el modal
+        cerrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space()='Regresar']")))
+        self.driver.execute_script("arguments[0].click();", cerrar)
+
+
     def checar_docs_importar(self,cliente: str, doc: str) -> bool:
         wait = WebDriverWait(self.driver, 20)
 
@@ -127,6 +295,9 @@ class Documentos(Base):
             "Constancia de identificación fiscal (compareciente o partes)": "fiscal",
         }
         doc = mapping.get(doc, doc)
+
+        #Espera un poco para que cargue la ventana de importacion
+        time.sleep(2)
 
         # Espera a que el modal esté visible
         modal_body = wait.until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class,'modal-body')]")))
@@ -193,31 +364,38 @@ class Documentos(Base):
         self.driver.execute_script("arguments[0].click();", cerrar)
         return True
 
-    def procesamiento_papeleria(self,documents: list,docs, partes:list, inmuebles: list, listas_uif: list):
+
+    def procesamiento_papeleria(self,documents: list,docs, partes:list, inmuebles: list):
         """
             PROCESAMIENTO DE TODOS LOS DOCUMENTOS A SUBIR JUNTO CON SELENIUM
         """
         papeleria_inmuebles = ["Escritura Antecedente (Inmueble)", "Recibo de pago del impuesto predial","Avalúo Catastral", 
-                            "Aviso preventivo","Solicitud de Avalúo", "Plano"]
+                            "Aviso preventivo","Solicitud de Avalúo", "Plano", "Certificado de Libertad y Gravamen",
+                            "Avaluó Comercial","Avaluó Referido"]
         papeleria_basica = ["Comprobante de Domicilio (compareciente o partes)", "Identificación oficial (compareciente o partes)",
                             "Constancia de identificación fiscal (compareciente o partes)", "Acta de nacimiento (compareciente o partes)",
                             "CURP (compareciente o partes)", "Acta de matrimonio (compareciente o partes)"]
         papeleria_sociedad = ["Acta constitutiva (antecedente)", "Poder del representante legal", "Asambleas antecedente de la sociedad",
-                            "Constancia de identificación fiscal Sociedad"]
+                            "Constancia de identificación fiscal Sociedad", "Carta de instrucción vigente",
+                            "Escritura Antecedente de la apertura del crédito, convenios o constitución del fideicomiso"]
+        
         papeleria_otros = ["Expediente judicial", "Forma ISAI Amarilla (Registro Publico)", "Recibo de pago ISAI",
                         "Recibo de pago Derechos de Registro", "Acta de nacimiento del cónyuge", "Identificación oficial del cónyuge",
                         "Otros", "CURP del cónyuge", "Comprobante de Domicilio del cónyuge"]
+        
         for doc in documents:
             print(f"DOC PROCESANDO: {doc}")
             if doc == "Consulta UIF Lista Negra":
-                self.subir_lista_uifs(listas_uif)
-                #Marcar como hecho la lista_uif
-                docs.set_faltante_by_description(doc, marcar=True)
+                if self.subir_lista_uifs(partes):
+                    docs.set_faltante_by_description(doc, marcar=True)
             elif doc in papeleria_basica:
                 if self.subir_doc_partes_basicas(partes, doc):
                     docs.set_faltante_by_description(doc, marcar=True)
             if doc in papeleria_inmuebles:
                 if self.subir_doc_inmuebles(inmuebles,doc):
+                    docs.set_faltante_by_description(doc, marcar=True)
+            if doc in papeleria_sociedad:
+                if self.subir_papeleria_sociedad(partes, doc):
                     docs.set_faltante_by_description(doc, marcar=True)
         
         but = self.driver.find_element(By.XPATH,f"//div[@class='col-md-10']//div[@class='text-end']//button[@type='button']")
@@ -243,13 +421,15 @@ class Documentos(Base):
                 comentarios_tab.agregar_comentario(comentario_subir)
                 comentarios_tab.enviar_comentario()
                 time.sleep(1)
-        comentarios_tab.guardar_proyecto()
+        #comentarios_tab.guardar_proyecto()
         time.sleep(2)
         
+        folio = ""
         try:
             folio = comentarios_tab.get_folio("\"PRUEBAS BOTBI\" " + descripcion)
         except Exception as e:
             logger.error("NO se pudo capturar el folio en el proyecto: {}",e)
+            pass
 
         self.guardar_papeleria_JSON(cache_dir, "\"PRUEBAS BOTBI\" " + descripcion, folio, escritura, cliente, abogado)
 

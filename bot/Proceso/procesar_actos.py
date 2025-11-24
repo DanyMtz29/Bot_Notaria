@@ -18,8 +18,8 @@ def procesar_actos(driver, wait,abogado, actos_root):
     """
         Proceso que recorre el portal por todos los proyectos de cada abogado
     """
-    it = 1
-    attempts = 1
+    it = 0
+    attempts = 3
     for acto in os.listdir(actos_root):
         full = os.path.join(actos_root, acto)
         if not os.path.isdir(full):# Ignorar archivos sueltos que no sean carpetas de acto
@@ -30,6 +30,7 @@ def procesar_actos(driver, wait,abogado, actos_root):
         if not os.path.exists(json_dir):
             while attempts > 0:
                 try:
+                    print("CREANDO PROYECTO")
                     extraer_datos_proyecto(driver, wait, full, abogado, cache_dir)
                     logger.success(f"Proyecto {acto} creado correctamente")
                     break
@@ -37,6 +38,7 @@ def procesar_actos(driver, wait,abogado, actos_root):
                     attempts-=1
                     logger.error(f"No se pudo crear el Proyecto: {acto}. Error: {e}")
                     shutil.rmtree(cache_dir, ignore_errors=True)
+                    print(f"Reintento {attempts}")
                     time.sleep(2)
         else:
             while attempts > 0:
@@ -50,7 +52,7 @@ def procesar_actos(driver, wait,abogado, actos_root):
                     print(f"Reintento {attempts}")
                     time.sleep(2)
         time.sleep(3)
-        if it > 0:
+        if it > 2:
             break
         attempts = 3
         it+=1
@@ -69,7 +71,7 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
     
     # 3) Escanear y guardar JSON
     extraction = scan_acto_folder(acto, acto_nombre=os.path.basename(acto))
-
+    
     pf_list, pm_list = actos_folder._extract_partes_pf_pm(extraction)
 
     acto_nombre = getattr(extraction, "acto_nombre", os.path.basename(acto))
@@ -79,7 +81,8 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
     #Guarda el json
     json_path = actos_folder._ensure_cache_and_write_json(acto, extraction)
 
-    all_parties = actos_folder._flatten_all_parties(pf_list, pm_list)
+    #all_parties = actos_folder._flatten_all_parties(pf_list, pm_list)
+
     partes = []
     for cl in pf_list:
         partes.append(cl)
@@ -88,11 +91,25 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
 
     time.sleep(1)
     clt = Cliente(driver, wait)
-    listas_uif = clt.procesar_partes(all_parties)
+    clt.procesar_partes(partes)
+
+    #TODO por quitar
+    print("ESTRACTION COMPLETADA")
+    for part in partes:
+        if part.get("tipo") == "PM":
+            print(f"Sociedad: {part.get("nombre","")}, UIF: {part.get("uif","")}")    
+            rep = part.get("representante", {})
+            print(f"  Rep: {rep.get("nombre","")}, UIF: {rep.get("uif","")}")
+        else:
+            print(f"Persona: {part.get("nombre","")}, UIF: {part.get("uif","")}")    
+            conyugue = part.get("esposa_o_esposo", {})
+            if conyugue:
+                print(f"  Esposo/a: {conyugue.get("nombre","")}, UIF: {conyugue.get("uif","")}")
+
     crear_proyecto(driver,wait,cliente_principal,partes, acto_nombre, descripcion, 
-                   inm_list, cache_dir, escritura, abogado, listas_uif)
+                  inm_list, cache_dir, escritura, abogado)
     
-def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmuebles, cache_dir, escritura,abogado, listas_uif):
+def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmuebles, cache_dir, escritura,abogado):
     """
         CREA EL PROYECTO EN EL PORTAL
     """
@@ -100,26 +117,94 @@ def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmu
     pp.create_project(abogado,cliente,("\"PRUEBAS BOTBI\" " + descripcion),acto_nombre)
     partesTAP = partesTap(driver, wait)
 
+    
+    comprador = 0
+    for part in partes:
+        rol = part.get("rol", "").upper()
+        if rol == "COMPRADOR": comprador += 1
+        if part.get("tipo") == "PM":
+            representante = part.get("representante", {})
+            if representante:
+                rep_rol = representante.get("rol", "").upper()
+                if rep_rol == "COMPRADOR": comprador += 1
+        else:
+            conyugue = part.get("esposa_o_esposo", {})
+            if conyugue:
+                conyugue_rol = conyugue.get("rol", "").upper()
+                if conyugue_rol == "COMPRADOR": comprador += 1
+
+    porcentaje = 1
+    if comprador > 1:
+        porcentaje = 100 / comprador
+
     for part in partes:
         nombre = part.get("nombre", "")
         rol    = part.get("rol", "").upper()
         print(f"Procesando: {nombre}, rol {rol}")
+
         if partesTAP.existe_cliente_y_rol(nombre,rol):
+            if part.get("tipo") == "PM":
+                representante = part.get("representante", {})
+                if representante:
+                    rep_nombre = representante.get("nombre", "")
+                    rep_rol    = representante.get("rol", "").upper()
+                    if not partesTAP.existe_cliente_y_rol(rep_nombre,rep_rol):
+                        partesTAP.agregar()
+                        partesTAP.set_cliente(rep_nombre)
+                        partesTAP.set_rol(rep_rol)
+                        if (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
+                                    } and rol.strip().lower() == "comprador" and partes.existe_cliente_y_rol("", "Comprador") ):
+                            partesTAP.set_porcentaje(porcentaje)
+                        partesTAP.guardar_parte()
+            else:
+                conyugue = part.get("esposa_o_esposo", {})
+                if conyugue:
+                    conyugue_nombre = conyugue.get("nombre", "")
+                    conyugue_rol    = conyugue.get("rol", "").upper()
+                    if not partesTAP.existe_cliente_y_rol(conyugue_nombre,conyugue_rol):
+                        partesTAP.agregar()
+                        partesTAP.set_cliente(conyugue_nombre)
+                        partesTAP.set_rol(conyugue_rol)
+                        if (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
+                                    } and rol.strip().lower() == "comprador" and partes.existe_cliente_y_rol("", "Comprador") ):
+                            partesTAP.set_porcentaje(porcentaje)
+                        partesTAP.guardar_parte()
             continue
         partesTAP.agregar()
         partesTAP.set_cliente(nombre)
         partesTAP.set_rol(rol)
         if (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
-                                    } and rol.strip().lower() == "comprador" and partes.existe_cliente_y_rol("", "Comprador")):
-            partesTAP.set_porcentaje(50)
+                                    } and rol.strip().lower() == "comprador" and partes.existe_cliente_y_rol("", "Comprador") ):
+            partesTAP.set_porcentaje(porcentaje)
         partesTAP.guardar_parte()   
+        if part.get("tipo") == "PM":
+            representante = part.get("representante", {})
+            if representante:
+                rep_nombre = representante.get("nombre", "")
+                rep_rol    = representante.get("rol", "").upper()
+                if not partesTAP.existe_cliente_y_rol(rep_nombre,rep_rol):
+                    partesTAP.agregar()
+                    partesTAP.set_cliente(rep_nombre)
+                    partesTAP.set_rol(rep_rol)
+                    partesTAP.guardar_parte()
+        else:
+            conyugue = part.get("esposa_o_esposo", {})
+            if conyugue:
+                conyugue_nombre = conyugue.get("nombre", "")
+                conyugue_rol    = conyugue.get("rol", "").upper()
+                if not partesTAP.existe_cliente_y_rol(conyugue_nombre,conyugue_rol):
+                    partesTAP.agregar()
+                    partesTAP.set_cliente(conyugue_nombre)
+                    partesTAP.set_rol(conyugue_rol)
+                    partesTAP.guardar_parte()
+
 
     docs = ProjectsDocumentsPage(driver, wait)
     docs.open_documents_tap()
     time.sleep(2)
 
     proceso_docs = Documentos(driver, wait)
-    proceso_docs.procesamiento_papeleria(docs.list_all_required_descriptions(), docs, partes, inmuebles, listas_uif)
+    proceso_docs.procesamiento_papeleria(docs.list_all_required_descriptions(), docs, partes, inmuebles)
     proceso_docs.comentarios_y_guardar_proyecto(cache_dir,descripcion, escritura,cliente,abogado)
 
 def subir_faltantes_proyecto(driver,wait, archivos_para_subir, contadores, escritura: str, clt: str, abg: str,folio:str) -> bool:

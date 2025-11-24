@@ -35,7 +35,13 @@ class Persona:
     rfc: Optional[str] = None
     idcif: Optional[str] = None
     docs: DocumentoPaths = field(default_factory=DocumentoPaths)
-    uif: Optional[str] = None  # Ruta al documento UIF
+    uif: str = None  # Ruta al documento UIF
+
+    def get(self, data:str):
+        if data == "nombre": return self.nombre
+        elif data == "rfc": return self.rfc
+        elif data == "idcif": return self.idcif
+        elif data == "docs": return self.docs
 
 @dataclass
 class PersonaFisica:
@@ -55,7 +61,7 @@ class Sociedad:
     # Documentos de banco (solo si es_banco = True)
     es_banco: bool = False
     carta_instruccion: Optional[str] = None   
-    uif: Optional[str] = None
+    uif: str = None
 
 @dataclass
 class Inmueble:
