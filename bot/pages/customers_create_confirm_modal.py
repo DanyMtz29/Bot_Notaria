@@ -102,7 +102,7 @@ class CustomersCreateConfirmModal:
         """
         content = self._get_visible_modal_content(timeout=timeout)
         self._wait_visible_inside(content, self._confirm_btn(), timeout=timeout)
-        logger.info("Modal 'Creación de cliente' visible.")
+        print("Modal 'Creación de cliente' visible.")
 
     def click_confirm(self, timeout: int = 20) -> bool:
         """
@@ -136,12 +136,12 @@ class CustomersCreateConfirmModal:
         except Exception:
             self.driver.execute_script("arguments[0].click();", btn)
 
-        logger.info("Clic en 'Crear Cliente' (confirmación final). Esperando cierre del modal…")
+        print("Clic en 'Crear Cliente' (confirmación final). Esperando cierre del modal…")
         closed = self._wait_modal_closed(timeout=timeout)
-        if closed:
-            logger.success("Modal de confirmación cerrado. Cliente creado (según UI).")
-        else:
-            logger.warning("El modal de confirmación no se cerró tras 'Crear Cliente'.")
+        # if closed:
+        #     logger.success("Modal de confirmación cerrado. Cliente creado (según UI).")
+        # else:
+        #     logger.warning("El modal de confirmación no se cerró tras 'Crear Cliente'.")
         return closed
 
     def confirm_without_email(self, timeout: int = 20) -> bool:

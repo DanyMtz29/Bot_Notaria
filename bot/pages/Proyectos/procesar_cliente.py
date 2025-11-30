@@ -34,7 +34,8 @@ class Cliente(Base):
             except Exception:
                 pass
             self.procesar_cliente(cl)
-
+            
+        logger.info("DESCARGADAS LISTAS UIF CORRESPONDIENTES COMPLETO")
         
         # for idx, party in enumerate(partes, start=1):
         #     if party.get('tipo') == "PM":
@@ -52,12 +53,14 @@ class Cliente(Base):
         found = self.CP.search_by_name(party["rfc"], timeout=12)
         time.sleep(1)
         if found:
-            logger.info("Cliente EXISTE en Singrafos: {}", party["nombre"])
+            print("Cliente EXISTE en Singrafos: {}", party["nombre"])
             nombre = self.driver.find_element(By.XPATH, "//div[contains(@class,'k-grid-content')]//table//tr[1]/td[1]")
             party["nombre"] = nombre.text.upper()
             self._descargar_uif_existente(party)
+            logger.info(f"DESCARGADA LISTA UIF DE {party["nombre"]}")
         else:
-            logger.info("Cliente NO existe, creando por IdCIF... [{}]", party.get("idcif", "sin IdCIF"))
+            logger.info(f"INTENTANDO CREAR CLIENTE {party["nombre"]}")
+            print("Cliente NO existe, creando por IdCIF... [{}]", party.get("idcif", "sin IdCIF"))
             if not self._crear_cliente_por_idcif(party):
                 """
                     Crear cliente manualmente
@@ -68,11 +71,11 @@ class Cliente(Base):
                 """
                 
             self._descargar_uif_existente(party)
-
+            logger.info(f"CLIENTE {party["nombre"]} CREADO CORRECTAMENTE Y UIF DESCARGADA CORRECTAMENTE")
 
     def _descargar_uif_existente(self, party):
         self.CP.click_first_view()
-        logger.info("Detalle de cliente abierto (lupita).")
+        print("Detalle de cliente abierto (lupita).")
 
         self.wait.until(
         EC.text_to_be_present_in_element((By.XPATH,"//h4[contains(@class,'page-title')]""//small[contains(@class,'fw-lighter')]"),party["nombre"]))
@@ -90,7 +93,6 @@ class Cliente(Base):
         pdf = UifModal(self.driver, self.wait).renombrar_ultimo_pdf(nombre_pdf)
         party["uif"] = pdf[-1]
 
-        logger.success("UIF descargado y renombrado.")
 
         # regresar a Clientes
         self.CP.open_direct(self.url)
@@ -115,10 +117,8 @@ class Cliente(Base):
 
     def _crear_cliente_por_idcif(self, party) -> bool:
         self.CP.click_new()
-        logger.success("Formulario 'Nuevo Cliente' abierto.")
 
         self.CP.click_crear_por_idcif()
-        logger.success("Flujo 'Crear por IdCIF' abierto.")
 
         modal = CustomersCifModal(self.driver, self.wait)
         modal.fill_and_consult(
@@ -132,7 +132,6 @@ class Cliente(Base):
             modal.click_create_customer(timeout=25)
             confirm = CustomersCreateConfirmModal(self.driver, self.wait)
             confirm.confirm_without_email(timeout=25)
-            logger.success("Cliente creado por IdCIF.")
             return True
         except Exception as e:
             logger.warning(f"No se pudo completar creación automática: {e}")

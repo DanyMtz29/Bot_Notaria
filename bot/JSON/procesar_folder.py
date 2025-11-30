@@ -83,7 +83,6 @@ class Folder:
                 continue
             cache_dir = os.path.join(full, "_cache_bot")
             if not os.path.exists(cache_dir):
-                logger.info(f"Acto elegible: {full}")
                 return [full,True]
             else:
                 logger.debug(f"SKIP (ya tiene _cache_bot): {full}")
@@ -107,7 +106,6 @@ class Folder:
         out_json = os.path.join(cache_dir, "acto.json")
         with open(out_json, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
-        logger.success(f"JSON generado: {out_json}")
         return out_json
 
     # =========================
@@ -197,22 +195,6 @@ class Folder:
                 pm_list.append(d)
 
         return pf_list, pm_list
-
-    def _print_partes_console(self, pf_list: List[Dict[str, str]], pm_list: List[Dict[str, str]], acto_nombre: str):
-        logger.info(f"== PARTES EXTRAÍDAS (sin inmuebles) :: {acto_nombre} ==")
-        if pf_list:
-            logger.info("Personas Físicas (PF):")
-            for d in pf_list:
-                logger.info(f"  - {d.get('rol') or 'ROL'} :: {d.get('nombre')} | RFC: {d.get('rfc') or '-'} | IdCIF: {d.get('idcif') or '-'}")
-        else:
-            logger.info("Personas Físicas (PF): [ninguna]")
-
-        if pm_list:
-            logger.info("Personas Morales (PM):")
-            for d in pm_list:
-                logger.info(f"  - {d.get('rol') or 'ROL'} :: {d.get('nombre')} | RFC: {d.get('rfc') or '-'} | IdCIF: {d.get('idcif') or '-'}")
-        else:
-            logger.info("Personas Morales (PM): [ninguna]")
 
     def _flatten_all_parties(self, pf_list: List[Dict[str, str]], pm_list: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """

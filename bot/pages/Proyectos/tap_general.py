@@ -95,6 +95,8 @@ class generalTap(Base):
         actos.append(acto)
         self.set_actos(actos)
         
+        logger.info("PESTAÑA 'GENERAL' RELLENADA CORRECTAMENTE")
+
         #Ir a partes
         partes_tab = self.driver.find_element(
             By.XPATH,

@@ -39,7 +39,6 @@ def _get_csf_scanner():
         return None
 
     try:
-        logger.info("Inicializando CSFScanner (EasyOCR) por primera vez...")
         _CSF_SCANNER = CSFScanner(langs=("es", "en"), gpu=False)
     except Exception as e:
         logger.error("Error inicializando CSFScanner: {}", e)

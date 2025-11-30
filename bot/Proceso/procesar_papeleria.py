@@ -94,7 +94,7 @@ class Documentos(Base):
         else:
             self.lista_comentarios[parte] = [doc]
 
-    def subir_doc(self, doc_up: str, parte:dict, doc_original: str) -> None:
+    def subir_doc_select(self, doc_up: str, parte:dict, doc_original: str) -> None:
         inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
         inp.send_keys(doc_up)
         self.esperar_subida()
@@ -102,6 +102,17 @@ class Documentos(Base):
         fila = filas[-1]
         Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
         Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(parte.get("nombre"))
+        self.driver.execute_script("arguments[0].value = '';", inp)
+        time.sleep(1)
+    
+    def subir_doc_input(self, doc_up: str, nombre:str, doc_original: str) -> None:
+        inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
+        inp.send_keys(doc_up)
+        self.esperar_subida()
+        filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
+        fila = filas[-1]
+        Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
+        fila.find_element(By.XPATH, ".//td[4]//input").send_keys(nombre)
         self.driver.execute_script("arguments[0].value = '';", inp)
         time.sleep(1)
 
@@ -113,38 +124,55 @@ class Documentos(Base):
         elif doc == "Constancia de identificación fiscal Sociedad": doc = "CSF_SOCIEDAD"
         elif doc == "Carta de instrucción vigente": doc = "carta_instruccion"
 
-        #Subida de los documentos al portal
-        inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
         flag = True
         for parte in partes:
             if parte.get("tipo") == "PM":
-                if doc == "CSF_SOCIEDAD" or doc == "ACTA_CONSTITUTIVA":
+                if doc == "ACTA_CONSTITUTIVA":
                     if self.checar_docs_importar(parte.get("nombre"), doc_original):
+                        time.sleep(1)
+                    else:
+                        docs = parte.get("docs")    
+                        doc_up = docs.get(doc)
+                        if doc_up == None:
+                            self.add_coment(("PM",parte.get("nombre"), parte.get('rol')), doc_original)
+                            flag = False
+                        else:
+                            self.subir_doc_select(doc_up, parte, doc_original)
+                elif doc == "CSF_SOCIEDAD":
+                    if self.checar_docs_importar(parte.get("nombre"), doc_original) or self.checar_docs_importar(parte.get("nombre"), "Constancia de identificación fiscal (compareciente o partes)"):
                         time.sleep(1)
                     else:
                         docs = parte.get("docs")
                         doc_up = docs.get(doc)
                         if doc_up == None:
-                            self.add_coment(("PF",parte.get("nombre"), parte.get('rol')), doc_original)
+                            self.add_coment(("PM",parte.get("nombre"), parte.get('rol')), doc_original)
                             flag = False
                         else:
-                            self.subir_doc(doc_up, parte, doc_original)
+                            self.subir_doc_select(doc_up, parte, doc_original)
                 elif doc == "ASAMBLEAS":
                     self.checar_docs_importar_varios(parte.get("nombre"), doc_original)
                     docs = parte.get("docs")
                     asambleas = docs.get(doc)
                     for asam in asambleas:
-                        self.subir_doc(asam, parte, doc_original)
+                        self.subir_doc_select(asam, parte, doc_original)
                 elif doc == "carta_instruccion":
-                    docs = parte.get("docs")
-                    doc_up = docs.get(doc)
+                    print("ENTRA ACA")
+                    time.sleep(15)
                     es_banco = parte.get("es_banco", False)
-                    if doc_up == None and es_banco:
-                        self.add_coment(("PF",parte.get("nombre"), parte.get('rol')), doc_original)
-                        flag = False
-                    else:
-                        self.subir_doc(doc_up, parte, doc_original)
-
+                    print("ES_BACNO?", es_banco)
+                    ####
+                    doc_up = parte.get(doc)
+                    print("DOC_UOT", doc_up)
+                    ###
+                    if es_banco:
+                        doc_up = parte.get(doc)
+                        print("DOC_UOT", doc_up)
+                        if doc_up:
+                            self.subir_doc_input(doc_up, parte.get("nombre",""), doc_original)
+                        else:
+                            self.add_coment(("PM",parte.get("nombre"), parte.get('rol')), doc_original)
+                            flag = False
+                    print("SALE")
         return flag
                     
 
@@ -181,7 +209,7 @@ class Documentos(Base):
                 docs = part.get("docs")
                 doc_up = docs.get(doc)
                 if doc_up == None:
-                    if not doc == "COMP_DOMICILIO" and doc == "ACTA_MATRIMONIO":
+                    if doc not in ("COMP_DOMICILIO", "ACTA_MATRIMONIO"):
                         #add_coment(part.get("nombre"), doc_original)
                         tup = ("PF",part.get("nombre"), part.get('rol'))
                         if tup in self.lista_comentarios:
@@ -422,6 +450,7 @@ class Documentos(Base):
                 comentarios_tab.enviar_comentario()
                 time.sleep(1)
         #comentarios_tab.guardar_proyecto()
+        logger.info("INFORMACION DE PESTAÑA 'COMENTARIOS' RELLENADA CORRECTAMENTE")
         time.sleep(2)
         
         folio = ""
@@ -432,6 +461,7 @@ class Documentos(Base):
             pass
 
         self.guardar_papeleria_JSON(cache_dir, "\"PRUEBAS BOTBI\" " + descripcion, folio, escritura, cliente, abogado)
+        logger.info(f"DOCUMENTACION DEL ACTO GUARDADA CORRECTAMENTE EN LA CARPTE '_cache_bot': {cache_dir}")
 
     def guardar_papeleria_JSON(self,ruta: str, descripcion: str, folio:str, escritura: str, cliente: str, abg:str):
         """
@@ -449,7 +479,7 @@ class Documentos(Base):
         """
         ruta = os.path.join(ruta, "papeleria_faltante.json")
         data_ordenada = OrderedDict()
-        data_ordenada["Fecha de registro"] = datetime.now().isoformat(timespec="seconds")
+        data_ordenada["Fecha de registro"] = datetime.datetime.now().isoformat(timespec="seconds")
         data_ordenada["Folio"] = folio
         data_ordenada["Escritura"] = escritura
         data_ordenada["Descripcion del proyecto"] = descripcion
@@ -469,5 +499,3 @@ class Documentos(Base):
 
         with open(ruta, "w", encoding="utf-8") as f:
             json.dump(data_ordenada, f, indent=4, ensure_ascii=False)
-
-        logger.info("Papelería guardada con contadores en: {}", ruta)

@@ -95,7 +95,7 @@ class UifModal:
             EC.element_to_be_clickable(self._btn_buscar_de_nuevo())
         )
         self._click_smart(btn)
-        logger.info("Clic en 'Buscar de nuevo'.")
+        print("Clic en 'Buscar de nuevo'.")
 
     def esperar_boton_descargar(self, timeout: int = 60):
         """
@@ -106,13 +106,13 @@ class UifModal:
             el = WebDriverWait(self.driver, timeout, poll_frequency=0.2).until(
                 EC.element_to_be_clickable(self._btn_descargar_grid())
             )
-            logger.info("Botón gris 'Descargar Comprobante' detectado (estricto).")
+            print("Botón gris 'Descargar Comprobante' detectado (estricto).")
             return el
         except TimeoutException:
             el = WebDriverWait(self.driver, timeout, poll_frequency=0.2).until(
                 EC.element_to_be_clickable(self._btn_descargar_grid_relaxed())
             )
-            logger.info("Botón 'Descargar Comprobante' detectado (relajado).")
+            print("Botón 'Descargar Comprobante' detectado (relajado).")
             return el
 
     def existe_boton_descargar(self, timeout_check: int = 3) -> bool:
@@ -125,16 +125,14 @@ class UifModal:
             WebDriverWait(self.driver, timeout_check, poll_frequency=0.2).until(
                 EC.presence_of_element_located(self._btn_descargar_grid())
             )
-            logger.info("Se encontró botón de descarga (estricto) sin buscar de nuevo.")
+            print("Se encontró botón de descarga (estricto) sin buscar de nuevo.")
             return True
         except TimeoutException:
             try:
                 WebDriverWait(self.driver, timeout_check, poll_frequency=0.2).until(
                     EC.presence_of_element_located(self._btn_descargar_grid_relaxed())
                 )
-                logger.info(
-                    "Se encontró botón de descarga (relajado) sin buscar de nuevo."
-                )
+                print("Se encontró botón de descarga (relajado) sin buscar de nuevo.")
                 return True
             except TimeoutException:
                 return False
@@ -142,7 +140,7 @@ class UifModal:
     def click_descargar_comprobante(self, timeout: int = 60):
         el = self.esperar_boton_descargar(timeout=timeout)
         self._click_smart(el)
-        logger.info("Clic en botón gris 'Descargar Comprobante' dentro del grid.'")
+        print("Clic en botón gris 'Descargar Comprobante' dentro del grid.'")
 
     def buscar_de_nuevo_y_descargar(
         self, timeout_busqueda: int = 40, timeout_descarga: int = 60, timeout_check: int = 3
@@ -154,7 +152,7 @@ class UifModal:
         """
         # 1) ¿Ya está el botón de descarga listo?
         if self.existe_boton_descargar(timeout_check=timeout_check):
-            logger.info("Comprobante ya disponible. Saltando 'Buscar de nuevo'.")
+            print("Comprobante ya disponible. Saltando 'Buscar de nuevo'.")
             self.click_descargar_comprobante(timeout=timeout_descarga)
             return
 
@@ -184,7 +182,6 @@ class UifModal:
             destino = os.path.join(carpeta_abs, nombre_destino)
 
             shutil.move(origen, destino)
-            logger.success(f"✅ Archivo renombrado: {destino}")
 
         except Exception as e:
             logger.error(f"❌ Error al renombrar PDF: {e}")

@@ -43,9 +43,7 @@ def proceso_por_abogado(headless: bool) -> None:
     user = os.getenv("PORTAL_USER", "")
     pwd  = os.getenv("PORTAL_PASS", "")
     abogados_root = os.getenv("LOCAL_ACTOS_ROOT", "")
-
-    logger.info("\n\n")
-
+    
     if not (user and pwd and abogados_root):
         logger.error("Faltan PORTAL_URL/USER/PASS y/o ACTOS_ROOT en .env")
         return
@@ -56,7 +54,6 @@ def proceso_por_abogado(headless: bool) -> None:
     while attempts > 0:
         try:
             LoginPage(driver,wait).login(user,pwd)
-            logger.success("Login OK")
             break
         except Exception as e:
             attempts -= 1

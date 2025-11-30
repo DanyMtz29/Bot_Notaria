@@ -1,3 +1,9 @@
+"""
+    26/11/2025 Modificacion en la linea 209
+    Se comento el if de que detecte solo la carpeta del representante
+    con el acronimo 'Representante'. Ahora solo con que detecte que 
+    hay una carpeta con eso se arma para saber que es un representante
+"""
 # bot/core/files.py
 from __future__ import annotations
 import os
@@ -206,7 +212,8 @@ class ActosFinder:
             return None
         for name in os.listdir(folder):
             full = os.path.join(folder, name)
-            if os.path.isdir(full) and _strip_accents(name).lower() in {"representante", "representante legal"}:
+            #if os.path.isdir(full) and _strip_accents(name).lower() in {"representante", "representante legal"}:
+            if os.path.isdir(full):
                 return full
         return None
 

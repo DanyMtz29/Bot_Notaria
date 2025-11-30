@@ -102,7 +102,6 @@ class FaltantesService:
         cache_dir = os.path.join(project_dir, cls.CACHE_DIRNAME)
         data = cls._leer_json_faltantes(cache_dir)
         if not data:
-            logger.info("No hay JSON de faltantes en {}", cache_dir)
             return {}, {}
 
         fecha = data.get("Fecha de registro")

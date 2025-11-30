@@ -67,9 +67,9 @@ class CustomerDetailPage:
         self.assert_loaded(timeout=timeout)
         btn = self.wait.until(EC.element_to_be_clickable(self._btn_busqueda_uif()))
         self._click_smart(btn)
-        logger.info("Abriendo modal 'Búsqueda UIF'…")
+        print("Abriendo modal 'Búsqueda UIF'…")
 
         # Esperar la presencia + visibilidad del modal ngb
         self.wait.until(EC.presence_of_element_located(self._modal_root()))
         self.wait.until(EC.visibility_of_element_located(self._modal_root()))
-        logger.info("Modal 'Búsqueda UIF' visible.")
+        print("Modal 'Búsqueda UIF' visible.")

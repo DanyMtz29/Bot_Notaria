@@ -76,14 +76,13 @@ class ClientsRowActions:
         except Exception:
             self.driver.execute_script("arguments[0].click();", lupita)
 
-        logger.info("Clic en la lupita de la primera fila. Esperando navegación a detalle…")
+        print("Clic en la lupita de la primera fila. Esperando navegación a detalle…")
 
         # Espera navegación a la URL de detalle
         end = time.time() + timeout
         while time.time() < end:
             try:
                 if "/customers/detail" in self.driver.current_url:
-                    logger.success("Detalle de cliente abierto.")
                     return
             except Exception:
                 pass
@@ -96,6 +95,5 @@ class ClientsRowActions:
                     (By.XPATH, "//app-customers-detail | //app-customers-detail-cif")
                 )
             )
-            logger.success("Detalle de cliente abierto (por componente).")
         except Exception:
             raise TimeoutError("No se abrió el detalle del cliente tras clicar la lupita.")

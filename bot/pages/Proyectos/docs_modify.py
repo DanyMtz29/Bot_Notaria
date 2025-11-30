@@ -109,5 +109,5 @@ class tapModify(Base):
             logger.info("⛔ El proyecto está EN REVISIÓN, no se puede modificar.")
             return True
         else:
-            logger.info("✅ Proyecto no está en revisión, continuar.")
+            print("✅ Proyecto no está en revisión, continuar.")
             return False

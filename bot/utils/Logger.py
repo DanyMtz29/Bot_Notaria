@@ -11,6 +11,10 @@ logger.remove()
     Guarda los logs correspondientes en la carpeta que se le pase
 """
 def setup_logger(nombre_carpeta: str):
+
+    #Qyitar los anteriores
+    logger.remove()
+
     # 1. Crear carpeta si no existe
     log_dir = os.path.join("bot", "logs", nombre_carpeta)
     os.makedirs(log_dir, exist_ok=True)
@@ -21,9 +25,10 @@ def setup_logger(nombre_carpeta: str):
 
     # 3. Agregar handler si no está registrado
     logger.add(
-    log_file,
-    encoding="utf-8",
-    enqueue=True,
-    backtrace=False,
-    diagnose=False,   
-    level="INFO")
+        log_file,
+        encoding="utf-8",
+        enqueue=True,
+        backtrace=False,
+        diagnose=False,   
+        level="INFO"
+    )

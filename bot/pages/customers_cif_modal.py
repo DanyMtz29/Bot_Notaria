@@ -143,7 +143,7 @@ class CustomersCifModal:
         if idcif:
             idcif_el.send_keys(idcif)
 
-        logger.info(f"Consultando CIF con RFC='{rfc or '-'}' IdCIF='{idcif or '-'}'")
+        print(f"Consultando CIF con RFC='{rfc or '-'}' IdCIF='{idcif or '-'}'")
         self._click_consult(content, timeout=timeout)
 
         # espera resultado + que se haya ido cualquier loader
@@ -185,14 +185,14 @@ class CustomersCifModal:
                     except Exception:
                         # si el click normal falla, intenta click por JS
                         self.driver.execute_script("arguments[0].click();", candidate)
-                    logger.info("Clic en 'Crear Cliente'. Esperando cierre del modal…")
+                    print("Clic en 'Crear Cliente'. Esperando cierre del modal…")
                     break
                 except Exception as e:
                     # si falló el scroll o algo antes, intenta directo el click por JS
                     logger.debug(f"Fallo scroll/click normal: {e}")
                     try:
                         self.driver.execute_script("arguments[0].click();", candidate)
-                        logger.info("Clic vía JS en 'Crear Cliente'. Esperando cierre del modal…")
+                        print("Clic vía JS en 'Crear Cliente'. Esperando cierre del modal…")
                         break
                     except Exception as e2:
                         logger.debug(f"Fallo click JS: {e2}")
@@ -203,8 +203,8 @@ class CustomersCifModal:
             raise TimeoutException("No se encontró el botón visible 'Crear Cliente' en el modal.")
 
         closed = self._wait_modal_closed(timeout=timeout)
-        if closed:
-            logger.success("Modal cerrado. Cliente creado (según la UI).")
-        else:
-            logger.warning("El modal no se cerró tras 'Crear Cliente'.")
+        # if closed:
+        #     logger.success("Modal cerrado. Cliente creado (según la UI).")
+        # else:
+        #     logger.warning("El modal no se cerró tras 'Crear Cliente'.")
         return closed

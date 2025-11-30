@@ -1,3 +1,11 @@
+"""
+    |Fecha      Responsble Linea     Descripcion                                     |
+    |29/11/2025  Daniel    309       Se comento la linea debido a que escaneaba dos  |
+    |                                veces las CSF                                   |
+    |29/11/2025  Daniel    229,226   Se comento la linea 226 y se quito la variable  |
+    |                                rep_inside dentro del if de la linea 229        |
+
+"""
 from __future__ import annotations
 import os
 from typing import List, Dict, Optional, Tuple
@@ -216,10 +224,10 @@ def _scan_role_dir(role_dir: str, role_name: str) -> Tuple[List[PersonaFisica], 
     if subdirs:
         for d in subdirs:
             full = os.path.join(role_dir, d)
-            rep_inside = ActosFinder.find_representante_folder(full) is not None
+            #rep_inside = ActosFinder.find_representante_folder(full) is not None
             has_pm_docs = ActosFinder.has_sociedad_docs(full)
             name_looks_pm = _looks_like_pm_folder_name(d)
-            if rep_inside or has_pm_docs or name_looks_pm:
+            if has_pm_docs or name_looks_pm:
                 pm_list.append(_scan_sociedad(full, rol=role_name))
             else:
                 pf_list.append(_build_pf_from_person_folder(full, role_name))
@@ -336,7 +344,7 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
     out.otros = sorted(os.path.join(acto_dir, f) for f in top_files)
 
     # Normaliza nombres desde CSF (tu rutina)
-    _force_names_from_csf(out)
+    #_force_names_from_csf(out) ========================================================
 
     # Prepara partes planas para el matcher
     partes_para_match = []
