@@ -58,7 +58,7 @@ def procesar_actos(driver, wait,abogado, actos_root):
                     print(f"Reintentando {attempts}")
                     time.sleep(5)
         time.sleep(3)
-        if it > 2:
+        if it > 0:
             break
         attempts = 3
         it+=1
@@ -166,14 +166,22 @@ def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmu
             continue
 
         partesTAP.agregar()
-        partesTAP.set_cliente(nombre)
+        if part.get("unknown"):
+            partesTAP.set_cliente("PUBLICO EN GENERAL")
+        else:
+            partesTAP.set_cliente(nombre)
         partesTAP.set_rol(rol)
-        if (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
-                    } and rol.strip().lower() == "comprador" and partesTAP.existe_cliente_y_rol("", "Comprador") ):
-            partesTAP.set_porcentaje((100/roles_repetidos[rol]))
-        elif (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
-                    } and rol.strip().lower() == "vendedor" and partesTAP.existe_cliente_y_rol("", "vendedor") ):
-            partesTAP.set_porcentaje((100/roles_repetidos[rol]))
+        # if (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
+        #             } and rol.strip().lower() == "comprador" and partesTAP.existe_cliente_y_rol("", "Comprador") ):
+        #     partesTAP.set_porcentaje((100/roles_repetidos[rol]))
+        # elif (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
+        #             } and rol.strip().lower() == "vendedor" and partesTAP.existe_cliente_y_rol("", "vendedor") ):
+        #     partesTAP.set_porcentaje((100/roles_repetidos[rol]))
+        if partesTAP.existe_cliente_y_rol("", rol.strip().lower()):
+            try:
+                partesTAP.set_porcentaje((100/roles_repetidos[rol]))
+            except Exception:
+                partesTap.guardar_parte()
         else:
             partesTAP.guardar_parte()
 

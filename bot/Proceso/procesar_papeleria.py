@@ -48,19 +48,20 @@ class Documentos(Base):
                 flag = False
                 continue
             
-            inp.send_keys(cl.get("uif"))
-            #time.sleep(3)
-            self.esperar_subida()
-            #Seleccionar la fila del archivo que se subio
-            #fila = self.driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{uif[0]}')] or .//*[contains(normalize-space(),'{uif[0]}')]]")
-            filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
-            fila = filas[-1]
-            #Seleccionar la columan 2, que es el 'Documento' y establecer que tipo de documento
-            Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text("Consulta UIF Lista Negra")
-            fila.find_element(By.XPATH, ".//td[4]//input").send_keys(cl.get("nombre"))
-            #Seleccionar el cliente que corresponde esa papeleria
-            self.driver.execute_script("arguments[0].value = '';", inp)#Remover los elementos anteriores
-            time.sleep(1)
+            self.subir_doc_select(cl.get("uif"), cl.get("nombre"), "Consulta UIF Lista Negra")
+            # inp.send_keys(cl.get("uif"))
+            # #time.sleep(3)
+            # self.esperar_subida()
+            # #Seleccionar la fila del archivo que se subio
+            # #fila = self.driver.find_element(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'{uif[0]}')] or .//*[contains(normalize-space(),'{uif[0]}')]]")
+            # filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
+            # fila = filas[-1]
+            # #Seleccionar la columan 2, que es el 'Documento' y establecer que tipo de documento
+            # Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text("Consulta UIF Lista Negra")
+            # fila.find_element(By.XPATH, ".//td[4]//input").send_keys(cl.get("nombre"))
+            # #Seleccionar el cliente que corresponde esa papeleria
+            # self.driver.execute_script("arguments[0].value = '';", inp)#Remover los elementos anteriores
+            # time.sleep(1)
         return flag
 
     def subir_doc_inmuebles(self, inmuebles: list, doc:str) -> bool:
@@ -73,14 +74,15 @@ class Documentos(Base):
         for inm in inmuebles:
             doc_path = inm.get(doc)
             if doc_path != None:
-                inp.send_keys(doc_path)
-                self.esperar_subida()
-                filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
-                fila = filas[-1]
-                Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc)
-                fila.find_element(By.XPATH, ".//td[4]//input").send_keys(inm.get_name())
-                self.driver.execute_script("arguments[0].value = '';", inp)
-                time.sleep(1)
+                # inp.send_keys(doc_path)
+                # self.esperar_subida()
+                # filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//a[contains(@title,'.pdf')] or .//*[contains(normalize-space(),'.pdf')]]")
+                # fila = filas[-1]
+                # Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc)
+                # fila.find_element(By.XPATH, ".//td[4]//input").send_keys(inm.get_name())
+                # self.driver.execute_script("arguments[0].value = '';", inp)
+                # time.sleep(1)
+                self.subir_doc_input(doc_path, inm.get_name(), doc)
             else:
                 tup = ("INM",inm.get_name(), 'INM')
                 if tup in self.lista_comentarios:
@@ -103,7 +105,10 @@ class Documentos(Base):
         filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
         fila = filas[-1]
         Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
-        Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(parte.get("nombre"))
+        if parte.get("unknown"):
+            fila.find_element(By.XPATH, ".//td[4]//input").send_keys(parte.get("nombre"))
+        else:
+            Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(parte.get("nombre"))
         self.driver.execute_script("arguments[0].value = '';", inp)
         time.sleep(1)
     
@@ -130,7 +135,7 @@ class Documentos(Base):
         for parte in partes:
             if parte.get("tipo") == "PM":
                 if doc == "ACTA_CONSTITUTIVA":
-                    if self.checar_docs_importar(parte.get("nombre"), doc_original):
+                    if not parte.get("unknown") and self.checar_docs_importar(parte.get("nombre"), doc_original):
                         time.sleep(1)
                     else:
                         docs = parte.get("docs")    
@@ -141,7 +146,7 @@ class Documentos(Base):
                         else:
                             self.subir_doc_select(doc_up, parte, doc_original)
                 elif doc == "CSF_SOCIEDAD":
-                    if self.checar_docs_importar(parte.get("nombre"), doc_original) or self.checar_docs_importar(parte.get("nombre"), "Constancia de identificación fiscal (compareciente o partes)"):
+                    if not parte.get("unknown") and (self.checar_docs_importar(parte.get("nombre"), doc_original) or self.checar_docs_importar(parte.get("nombre"), "Constancia de identificación fiscal (compareciente o partes)")):
                         time.sleep(1)
                     else:
                         docs = parte.get("docs")
@@ -152,7 +157,8 @@ class Documentos(Base):
                         else:
                             self.subir_doc_select(doc_up, parte, doc_original)
                 elif doc == "ASAMBLEAS":
-                    self.checar_docs_importar_varios(parte.get("nombre"), doc_original)
+                    if not parte.get("unknown"):
+                        self.checar_docs_importar_varios(parte.get("nombre"), doc_original)
                     docs = parte.get("docs")
                     asambleas = docs.get(doc)
                     for asam in asambleas:
@@ -207,7 +213,7 @@ class Documentos(Base):
 
         for part in clientes:
             #Primero chechar si no esta en importados
-            if self.checar_docs_importar(part.get("nombre"), doc_original):
+            if not part.get("unknown") and self.checar_docs_importar(part.get("nombre"), doc_original):
                 time.sleep(1)
             else:
                 docs = part.get("docs")
@@ -222,14 +228,15 @@ class Documentos(Base):
                             self.lista_comentarios[tup] = [doc_original]
                     flag = False
                 else:
-                    inp.send_keys(doc_up)
-                    self.esperar_subida()
-                    filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
-                    fila = filas[-1]
-                    Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
-                    Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
-                    self.driver.execute_script("arguments[0].value = '';", inp)
-                    time.sleep(1)
+                    # inp.send_keys(doc_up)
+                    # self.esperar_subida()
+                    # filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
+                    # fila = filas[-1]
+                    # Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
+                    # Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
+                    # self.driver.execute_script("arguments[0].value = '';", inp)
+                    # time.sleep(1)
+                    self.subir_doc_select(doc_up, part, doc_original)
         return flag
     
     def checar_docs_importar_varios(self, cliente: str, doc: str) -> None:
@@ -395,20 +402,6 @@ class Documentos(Base):
         cerrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'modal-footer')]//button[normalize-space()='Regresar']")))
         self.driver.execute_script("arguments[0].click();", cerrar)
         return True
-
-    def subir_otros(self, otros: list, doc: str) -> bool:
-        #doc_original = doc
-        """
-        = ["Expediente judicial", "Forma ISAI Amarilla (Registro Publico)", "Recibo de pago ISAI",
-        "Recibo de pago Derechos de Registro", "Acta de nacimiento del cónyuge", "Identificación oficial del cónyuge",
-        "Otros", "CURP del cónyuge", "Comprobante de Domicilio del cónyuge", "Lista nominal"]
-        """
-        # if doc == "Expediente judicial": doc = ""
-        # elif doc == "Poder del representante legal": doc = "PODER_REPRESENTANTE"
-        # elif doc == "Asambleas antecedente de la sociedad": doc = "ASAMBLEAS"
-        # elif doc == "Constancia de identificación fiscal Sociedad": doc = "CSF_SOCIEDAD"
-        # elif doc == "Carta de instrucción vigente": doc = "carta_instruccion"
-
 
     def procesamiento_papeleria(self,documents: list,docs, partes:list, inmuebles: list, otros: list):
         """

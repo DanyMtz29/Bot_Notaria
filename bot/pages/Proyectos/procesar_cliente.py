@@ -55,17 +55,13 @@ class Cliente(Base):
         else:
             logger.info(f"INTENTANDO CREAR CLIENTE {party["nombre"]}")
             print("Cliente NO existe, creando por IdCIF... [{}]", party.get("idcif", "sin IdCIF"))
-            if not self._crear_cliente_por_idcif(party):
-                """
-                    Crear cliente manualmente
-                    self.crearClienteManual(party)
-
-                    Correccion:
-                    VERIFICAR EL TOAST DE INCORRECTO
-                """
-                
-            self._descargar_uif_existente(party)
-            logger.info(f"CLIENTE {party["nombre"]} CREADO CORRECTAMENTE Y UIF DESCARGADA CORRECTAMENTE")
+            if self._crear_cliente_por_idcif(party):
+                self._descargar_uif_existente(party)
+                logger.info(f"CLIENTE {party["nombre"]} CREADO CORRECTAMENTE Y UIF DESCARGADA CORRECTAMENTE")
+            else:
+                #Indicando que no se pudo obtener el cliente
+                party["unknown"] = True
+                logger.info(f"CLIENTE {party["nombre"]} NO SE PUDO CREAR")
 
     def _descargar_uif_existente(self, party):
         self.CP.click_first_view()
@@ -120,7 +116,15 @@ class Cliente(Base):
             (party.get("idcif") or "").strip()
         )
 
-        self.check_incorrecto()
+        if self.check_incorrecto():
+            logger.error(f"No se pudo crear el cliente con los siguientes datos: \
+                        Nombre: {party["nombre"]}\
+                        RFC: {party["rfc"]}\
+                        IDCIF: {party["idcif"]}\
+                        Error: No se pudo obtener informacion del SAT")
+            btn_close = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//ngb-modal-window//button[@class='btn-close']")))
+            btn_close.click()
+            return False
 
         try:
             modal.click_create_customer(timeout=25)
@@ -144,10 +148,9 @@ class Cliente(Base):
             se pueden abstraer
         """
     
-    def check_incorrecto(self) -> None:
+    def check_incorrecto(self) -> bool:
         try:
             self.wait.until(EC.visibility_of_element_located((By.XPATH,"//div[@id='toast-container']//div[contains(@class,'toast')]//div[contains(.,'Información incorrecta')]")))
-            print("🔥 Se activó el toast de error del SAT")
+            return True
         except:
-            print("No apareció el toast")
-        
+            return False

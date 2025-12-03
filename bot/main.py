@@ -21,7 +21,7 @@ def _pipeline(headless: bool) -> None:
     # from bot.core.faltantes import FaltantesService
 
     # ruta = r"C:\Users\mdani\OneDrive\Desktop\Botbi\Carpeta_Notaria84\BOT SINGRAFOS BOTBI\\"
-    # proyecto = "ESC. Compraventa - Daniel"
+    # proyecto = "ESC. Aclaracion - Daniel - Prueba Aclaracion"
     # acto = ruta + proyecto
     # resolver = ActoResolver()
     # actos_folder = Folder()
@@ -31,6 +31,9 @@ def _pipeline(headless: bool) -> None:
     
     # # 3) Escanear y guardar JSON
     # extraction = scan_acto_folder(acto, acto_nombre=os.path.basename(acto))
+    # json_path = actos_folder._ensure_cache_and_write_json(acto, extraction)
+
+    # print(extraction)
 
     # pf_list, pm_list = actos_folder._extract_partes_pf_pm(extraction)
 
