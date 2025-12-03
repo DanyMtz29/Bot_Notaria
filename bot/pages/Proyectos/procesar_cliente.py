@@ -44,7 +44,13 @@ class Cliente(Base):
         self.CP.assert_loaded()
 
         time.sleep(1)
-        found = self.CP.search_by_name(party["rfc"], timeout=12)
+        if party["rfc"] != None:
+            found = self.CP.search_by_name(party["rfc"], timeout=12)
+        elif party["nombre"] != None:
+            found = self.CP.search_by_name(party["nombre"], timeout=12)
+        else:
+            found = None
+            
         time.sleep(1)
         if found:
             print("Cliente EXISTE en Singrafos: {}", party["nombre"])

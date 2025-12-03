@@ -17,7 +17,7 @@ Formas de carpeta:
 from __future__ import annotations
 import re
 import unicodedata
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import List, Dict, Optional, Tuple
 
 # ===========================================================
@@ -223,6 +223,7 @@ for canon, alias_list in ALIAS_POR_ACTO.items():
 @dataclass
 class ResolucionActo:
     acto_canonico: str
+    actos_relacionados: List[str] = field(default_factory=list)
     cliente_principal: Optional[str] = None
     cliente_fuente: str = "carpeta"   # "carpeta" o "partes"
     raw_cliente_hint: Optional[str] = None
@@ -238,16 +239,79 @@ class ActoResolver:
     """
 
     # ---------- helpers de parsing ----------
+    # def _split_por_guiones(self, folder_name: str) -> Tuple[str, Optional[str], Optional[str]]:
+    #     """
+    #     Divide en 3: [izquierda] - [cliente] - [resto ignorado]
+    #     Acepta -, –, —. Si no hay guion, cliente y resto serán None.
+    #     """
+    #     parts = DASH_SPLIT.split(folder_name, maxsplit=2)
+    #     left = parts[0].strip() if len(parts) >= 1 else folder_name
+    #     print("Left: ", left)
+    #     middle = parts[1].strip() if len(parts) >= 2 else None
+    #     print("Middle: ",middle)
+    #     right = parts[2].strip() if len(parts) >= 3 else None
+    #     print("Right: ",right)
+    #     return left, middle, right
     def _split_por_guiones(self, folder_name: str) -> Tuple[str, Optional[str], Optional[str]]:
         """
-        Divide en 3: [izquierda] - [cliente] - [resto ignorado]
-        Acepta -, –, —. Si no hay guion, cliente y resto serán None.
+        Divide el nombre por guiones REALES, ignorando los guiones del prefijo .-
+        Ejemplos válidos de prefijo:
+            Esc.- ...
+            AFP.- ...
+            123.- ...
+        Resultado:
+            left   -> prefijo + actos
+            middle -> cliente principal
+            right  -> lo que venga después (descripción)
         """
-        parts = DASH_SPLIT.split(folder_name, maxsplit=2)
-        left = parts[0].strip() if len(parts) >= 1 else folder_name
-        middle = parts[1].strip() if len(parts) >= 2 else None
-        right = parts[2].strip() if len(parts) >= 3 else None
+        s = folder_name.strip()
+
+        # ============================================================
+        # 1) Detectar prefijo con ".-" para NO partir en ese guion
+        # ============================================================
+        m = re.match(r"^\s*([A-Za-z0-9]+)\.\-\s*(.*)$", s)
+        if m:
+            prefijo = m.group(1)       # Ej: Esc, AFP, 123
+            resto   = m.group(2)       # Ej: Compraventa, Donación - Juan - Descripción
+
+            # ============================================================
+            # 2) Partir el resto en MÁXIMO 2 guiones reales
+            # ============================================================
+            partes = re.split(r"\s*-\s*", resto)
+
+            if len(partes) == 1:
+                # Sólo actos, sin cliente
+                left = f"{prefijo}.- {partes[0].strip()}"
+                return left, None, None
+
+            if len(partes) == 2:
+                # left = prefijo + actos, middle = cliente, no hay right
+                left   = f"{prefijo}.- {partes[0].strip()}"
+                middle = partes[1].strip()
+                return left, middle, None
+
+            # len >= 3 → hay right
+            left   = f"{prefijo}.- {partes[0].strip()}"
+            middle = partes[1].strip()
+            right  = "-".join(partes[2:]).strip()
+            return left, middle, right
+
+        # ============================================================
+        # 3) SI NO HAY PREFIJO .-, entonces usar split normal en 3 partes
+        # ============================================================
+        partes = re.split(r"\s*-\s*", s)
+
+        if len(partes) == 1:
+            return partes[0].strip(), None, None
+
+        if len(partes) == 2:
+            return partes[0].strip(), partes[1].strip(), None
+
+        left   = partes[0].strip()
+        middle = partes[1].strip()
+        right  = "-".join(partes[2:]).strip()
         return left, middle, right
+
 
     def _extraer_escritura_y_titulo(self, left: str):
         """
@@ -270,10 +334,25 @@ class ActoResolver:
             return int(m.group(1)), m.group(2).strip()
 
         # Caso: prefijos textuales tipo Esc, ESC, Escritura (ej. Esc.- Adjudicacion)
+        # m = re.match(
+        #     r"^\s*(?:esc(?:\.|ritura)?|escritura)\s*[\.\-]*\s*(.*\S)\s*$",
+        #     s,
+        #     flags=re.IGNORECASE
+        # )
         m = re.match(
-            r"^\s*(?:esc(?:\.|ritura)?|escritura)\s*[\.\-]*\s*(.*\S)\s*$",
+            r"""
+            ^\s*
+            (?:                                   # Prefijos válidos
+                esc(?:\.|ritura)?                 # ESC, ESC., ESCRITURA
+                | afp\.?                          # AFP o AFP.
+                | \d+                             # números tipo 123
+            )
+            \s*[\.\-]*\s*                          # separadores: ".", "-", ".-", "--", etc.
+            (.*\S)                                 # captura del nombre del acto
+            $
+            """,
             s,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE | re.VERBOSE
         )
         if m:
             return None, m.group(1).strip()
@@ -298,69 +377,115 @@ class ActoResolver:
         return score
 
     # ---------- detección de acto ----------
-    def detect_acto(self, folder_name: str) -> Tuple[str, Optional[int], Dict[str, str]]:
+    def detect_acto(self, folder_name: str):
+        """
+        Detecta uno o varios actos canónicos.
+        Regresa:
+        acto_principal: str
+        actos_relacionados: list[str]
+        escritura: int|None
+        dbg: dict
+        """
         dbg = {}
-        left, middle, _ = self._split_por_guiones(folder_name)
+
+        # Extraer left = actos (con prefijo si aplica)
+        left, middle, right = self._split_por_guiones(folder_name)
         escritura, titulo_candidato = self._extraer_escritura_y_titulo(left)
+
         dbg["left"] = left
         dbg["titulo_candidato"] = titulo_candidato
         dbg["escritura"] = str(escritura) if escritura is not None else "None"
 
-        # 0) Reglas fuertes muy específicas
-        cand_tokens = set(_tokens(titulo_candidato))
+        # ======================================================
+        # NUEVO: dividir múltiples actos por coma
+        # ======================================================
+        actos_raw = [a.strip() for a in titulo_candidato.split(",") if a.strip()]
+        dbg["actos_raw"] = actos_raw
 
-        # Compraventa + FOVISSSTE
-        if "compraventa" in cand_tokens and "fovissste" in cand_tokens:
-            dbg["via"] = "rule_cv_fovissste"
-            return "COMPRAVENTA FOVISSSTE", escritura, dbg
+        actos_detectados = []
 
-        # Compraventa + INFONAVIT (regla fuerte similar a FOVISSSTE)
-        if "infonavit" in cand_tokens and ("compraventa" in cand_tokens or "compra" in cand_tokens or "venta" in cand_tokens or "cv" in cand_tokens):
-            dbg["via"] = "rule_cv_infonavit"
-            return "COMPRAVENTA INFONAVIT", escritura, dbg
+        for acto_raw in actos_raw:
+            dbg_acto = {}
+            cand_tokens = set(_tokens(acto_raw))
+            titulo_norm = _norm(acto_raw)
 
-        # Carta + Permiso
-        if "carta" in cand_tokens and "permiso" in cand_tokens:
-            dbg["via"] = "rule_carta_permiso"
-            return "AFP / CARTA PERMISO MENOR DE EDAD", escritura, dbg
-
-        # 1) Alias por substring normalizado
-        titulo_norm = _norm(titulo_candidato)
-        for alias_norm, canon in ALIAS_MAP.items():
-            if alias_norm in titulo_norm:
-                dbg["via"] = f"alias_substring:{alias_norm}"
-                return canon, escritura, dbg
-
-        # 2) Scoring tokens vs actos
-        best_score, best_canon = -1.0, None
-        for canon, canon_toks in TOKENS_CANON.items():
-            if not canon_toks:
+            # ------------------------------
+            # 1) Reglas fuertes
+            # ------------------------------
+            if "compraventa" in cand_tokens and "fovissste" in cand_tokens:
+                actos_detectados.append(("COMPRAVENTA FOVISSSTE", dbg_acto))
                 continue
-            overlap = len(canon_toks & cand_tokens)
-            if overlap == 0:
+            if "infonavit" in cand_tokens and (
+                "compraventa" in cand_tokens or
+                "compra" in cand_tokens or
+                "venta" in cand_tokens or
+                "cv" in cand_tokens
+            ):
+                actos_detectados.append(("COMPRAVENTA INFONAVIT", dbg_acto))
                 continue
-            score = 3*overlap + 5*(1.0 if canon_toks.issubset(cand_tokens) else 0.0) + 4*_jaccard(canon_toks, cand_tokens)
-            # boosts útiles
-            if "infonavit" in cand_tokens and "infonavit" in canon_toks:
-                score += 3.0
-            if "fovissste" in cand_tokens and "fovissste" in canon_toks:
-                score += 3.0
-            if score > best_score:
-                best_score, best_canon = score, canon
+            if "carta" in cand_tokens and "permiso" in cand_tokens:
+                actos_detectados.append(("AFP / CARTA PERMISO MENOR DE EDAD", dbg_acto))
+                continue
 
-        if best_canon:
-            dbg["via"] = "scoring_titulo"
-            dbg["score"] = f"{best_score:.3f}"
-            return best_canon, escritura, dbg
+            # ------------------------------
+            # 2) Alias directos
+            # ------------------------------
+            alias_found = False
+            for alias_norm, canon in ALIAS_MAP.items():
+                if alias_norm in titulo_norm:
+                    actos_detectados.append((canon, dbg_acto))
+                    alias_found = True
+                    break
+            if alias_found:
+                continue
 
-        # 3) Fallback razonable
-        if "compraventa" in cand_tokens:
-            dbg["via"] = "fallback_cv"
-            return "COMPRAVENTA", escritura, dbg
+            # ------------------------------
+            # 3) Scoring tokens
+            # ------------------------------
+            best = None
+            best_score = -1.0
+            for canon, canon_toks in TOKENS_CANON.items():
+                if not canon_toks:
+                    continue
+                overlap = len(canon_toks & cand_tokens)
+                if overlap == 0:
+                    continue
+                score = (
+                    3 * overlap +
+                    5 * (1.0 if canon_toks.issubset(cand_tokens) else 0.0) +
+                    4 * _jaccard(canon_toks, cand_tokens)
+                )
+                # boosts especiales
+                if "infonavit" in cand_tokens and "infonavit" in canon_toks:
+                    score += 3
+                if "fovissste" in cand_tokens and "fovissste" in canon_toks:
+                    score += 3
 
-        # Último recurso: devuelve el título en mayúsculas como aproximación
-        dbg["via"] = "fallback_raw_titulo"
-        return titulo_candidato.upper(), escritura, dbg
+                if score > best_score:
+                    best_score = score
+                    best = canon
+
+            if best:
+                actos_detectados.append((best, dbg_acto))
+                continue
+
+            # ------------------------------
+            # 4) fallback razonable
+            # ------------------------------
+            if "compraventa" in cand_tokens:
+                actos_detectados.append(("COMPRAVENTA", dbg_acto))
+            else:
+                actos_detectados.append((acto_raw.upper(), dbg_acto))
+
+        # ======================================================
+        # ACTO PRINCIPAL + RELACIONADOS
+        # ======================================================
+        acto_principal = actos_detectados[0][0] if actos_detectados else titulo_candidato.upper()
+        actos_relacionados = [a[0] for a in actos_detectados[1:]]
+
+        dbg["actos_detectados"] = actos_detectados
+
+        return acto_principal, actos_relacionados, escritura, dbg
 
     # ---------- cliente principal ----------
     def _cliente_hint(self, folder_name: str) -> str:
@@ -392,11 +517,12 @@ class ActoResolver:
 
     # ---------- Orquestador ----------
     def resolve(self, folder_name: str, partes: Optional[List[dict]] = None) -> Dict[str, object]:
-        acto, escritura, dbg = self.detect_acto(folder_name)
+        acto, actos_relacionados, escritura, dbg = self.detect_acto(folder_name)
         hint = self._cliente_hint(folder_name)
         cliente, score, fuente = self.pick_cliente_principal(hint, partes)
         return asdict(ResolucionActo(
             acto_canonico=acto,
+            actos_relacionados = actos_relacionados,
             cliente_principal=cliente,
             cliente_fuente=fuente,
             raw_cliente_hint=hint,

@@ -62,23 +62,23 @@ def _first_or_none(*vals):
     return None
 
 KNOWN_ROLES = {
-    "Comprador","Compareciente", "Vendedor", "Apoderado", "Acreedor",
-    "Banco", "Acreditado", "Deudor", "Donante", "Donatario",
-    "Fideicomisario", "Fideicomitente", "Fiduciario",
-    "Mutante", "Mutuario", "Poderdante", "Apoderado",
-    "Adquiriente", "Enajenante", "Testador", "Testigo",
-    "Acreditante", "Delegado fiduciario", "Depositario",
-    "Socios", "Accionistas", "Administrador", "Comisario",
-    "Presidente", "Secretario", "Tesorero", "Vocales",
-    "Comprador/Acreditado", "Vendedor terreno", "Vendedor construccion",
-    "Hij@", "Madre", "Padre"
+    "comprador","compareciente", "vendedor", "apoderado", "acreedor",
+    "banco", "acreditado", "deudor", "donante", "donatario",
+    "fideicomisario", "fideicomitente", "fiduciario",
+    "mutante", "mutuario", "poderdante", "apoderado",
+    "adquiriente", "enajenante", "testador", "testigo",
+    "acreditante", "delegado fiduciario", "depositario",
+    "socios", "accionistas", "administrador", "comisario",
+    "presidente", "secretario", "tesorero", "vocales",
+    "comprador/acreditado", "vendedor terreno", "vendedor construccion",
+    "hij@", "madre", "padre"
 }
 
 ACTO_ROLE_MAP: Dict[str, set] = {
-    "compraventa": {"Comprador", "Vendedor", "Apoderado", "Acreedor", "Banco", "Acreditado"},
-    "compraventa fovissste": {"Comprador", "Vendedor", "Acreditado", "Acreedor", "Banco", "Apoderado"},
-    "protocolizacion": {"Acreedor", "Deudor", "Apoderado", "Banco"},
-    "afp": {"Apoderado", "Poderdante", "Testigo"},
+    "compraventa": {"comprador", "vendedor", "apoderado", "acreedor", "aanco", "acreditado"},
+    "compraventa fovissste": {"comprador", "vendedor", "acreditado", "acreedor", "aanco", "apoderado"},
+    "protocolizacion": {"acreedor", "deudor", "apoderado", "banco"},
+    "afp": {"apoderado", "poderdante", "testigo"},
 }
 
 def _detect_acto_type(acto_nombre: str) -> Tuple[str, set]:
@@ -94,9 +94,9 @@ def _detect_acto_type(acto_nombre: str) -> Tuple[str, set]:
         return "afp", ACTO_ROLE_MAP["afp"]
     return "desconocido", KNOWN_ROLES
 
-INMUEBLE_DIR_NAMES = {"Inmueble", "Inmuebles"}
-SPOUSE_DIR_NAMES = {"Esposa", "Esposo", "Conyuge", "Conyugue", "CÓNYUGE", "CONYUGUE"}
-REPRESENTANTE_DIR_NAMES = {"Representante", "Representante legal"}
+INMUEBLE_DIR_NAMES = {"inmueble", "inmuebles"}
+SPOUSE_DIR_NAMES = {"esposa", "esposo", "conyuge", "cónyugue"}
+REPRESENTANTE_DIR_NAMES = {"representante", "representante legal"}
 PM_NAME_HINTS = {
     "s.a.", "s de rl", "s. de r.l", "sapi", "sab", "s.a.b",
     "sa de cv", "s.a. de c.v", "sc", "sociedad", "desarrolladora", "constructora",
@@ -282,7 +282,7 @@ def _scan_role_dir(role_dir: str, role_name: str) -> Tuple[List[PersonaFisica], 
             else:
                 pf_list.append(_build_pf_from_person_folder(full, role_name))
         return pf_list, pm_list
-
+    
     # fallback si no hay subcarpetas
     #rep_inside = ActosFinder.find_representante_folder(role_dir) is not None
     has_pm_docs = ActosFinder.has_sociedad_docs(role_dir)
@@ -374,6 +374,7 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
 
     # Partes PF/PM
     for d in top_dirs:
+        d = d.lower()
         if d in INMUEBLE_DIR_NAMES:
             continue
         if d not in KNOWN_ROLES or d not in allowed_roles:
@@ -409,6 +410,7 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
 
     # Prepara partes planas para el matcher
     partes_para_match = []
+
     for pf in out.partes_pf:
         if pf.persona and pf.persona.nombre:
             partes_para_match.append({"rol": pf.rol, "nombre": pf.persona.nombre})
@@ -431,7 +433,8 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
     out.acto_nombre       = det.get("acto_canonico") or carpeta
     out.cliente_principal = det.get("cliente_principal")
     out.cliente_fuente    = det.get("cliente_fuente")
-    out.escritura         = det.get("escritura")  # <== NUEVO
+    out.escritura         = det.get("escritura")
+    out.actos_relacionados = det.get("actos_relacionados")
 
     logger.debug("Acto canónico: {}", out.acto_nombre)
     logger.debug("Cliente principal: {} (fuente: {})", out.cliente_principal, out.cliente_fuente)
