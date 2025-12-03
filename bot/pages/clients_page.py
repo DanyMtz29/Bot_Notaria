@@ -173,8 +173,13 @@ class ClientsPage:
         inp.click()
         inp.send_keys(Keys.CONTROL, "a")
         inp.send_keys(Keys.DELETE)
+        time.sleep(1)
         inp.send_keys((name_upper or "").strip())
+        #Esperar a que este el nombre en el input
+        self.wait.until(EC.text_to_be_present_in_element_value((By.XPATH, "//input[@placeholder='Buscar por Nombre, Razón Social, Email, o RFC...']"),name_upper.strip()))    
         inp.send_keys(Keys.ENTER)
+
+        #Aqui que espere a que en el recuadro este el nombre del cliente
 
         # además, intenta el botón (check/lupa)
         self._trigger_search()

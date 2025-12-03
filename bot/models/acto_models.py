@@ -1,3 +1,12 @@
+"""
+    |Fecha      Responsble Linea     Descripcion                                     |
+    |02/12/2025  Daniel    65       Se comento la linea debido a que ahora son mas   |
+    |                               representantes                                   |
+    |02/12/2025  Daniel    105      Se comento el tipo de dato representante y se    |
+    |                               agrego el que acepta varios representantes.      |
+    
+"""
+
 from __future__ import annotations
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional
@@ -52,10 +61,11 @@ class PersonaFisica:
 @dataclass
 class Sociedad:
     rol: str = ""
-    nombre: Optional[str] = None          # Razón social (forzada desde CSF)
-    rfc: Optional[str] = None             # RFC de la sociedad (nuevo)
-    idcif: Optional[str] = None           # idCIF de la sociedad (nuevo)
-    representante: Optional[Persona] = None
+    nombre: Optional[str] = None          
+    rfc: Optional[str] = None             
+    idcif: Optional[str] = None           
+    #representante: Optional[Persona] = None
+    representantes: List[Persona] = field(default_factory=list)
     docs: DocumentoPaths = field(default_factory=DocumentoPaths)
 
     # Documentos de banco (solo si es_banco = True)
@@ -133,19 +143,35 @@ class ActoExtraction:
                 "nombre": pm.nombre,
                 "rfc": pm.rfc,
                 "idcif": pm.idcif,
-                "representante": None if not pm.representante else {
-                    "nombre": pm.representante.nombre,
-                    "rfc": pm.representante.rfc,
-                    "idcif": pm.representante.idcif,
-                    "docs": {
-                        "CSF": pm.representante.docs.CSF,
-                        "CURP": pm.representante.docs.CURP,
-                        "ACTA_NAC": pm.representante.docs.ACTA_NAC,
-                        "INE": pm.representante.docs.INE,
-                        "COMP_DOMICILIO": pm.representante.docs.COMP_DOMICILIO,
-                        "ACTA_MATRIMONIO": pm.representante.docs.ACTA_MATRIMONIO,
+                # "representante": None if not pm.representante else {
+                #     "nombre": pm.representante.nombre,
+                #     "rfc": pm.representante.rfc,
+                #     "idcif": pm.representante.idcif,
+                #     "docs": {
+                #         "CSF": pm.representante.docs.CSF,
+                #         "CURP": pm.representante.docs.CURP,
+                #         "ACTA_NAC": pm.representante.docs.ACTA_NAC,
+                #         "INE": pm.representante.docs.INE,
+                #         "COMP_DOMICILIO": pm.representante.docs.COMP_DOMICILIO,
+                #         "ACTA_MATRIMONIO": pm.representante.docs.ACTA_MATRIMONIO,
+                #     }
+                # },
+                "representantes": [
+                    {
+                        "nombre": r.nombre,
+                        "rfc": r.rfc,
+                        "idcif": r.idcif,
+                        "docs": {
+                            "CSF": r.docs.CSF,
+                            "CURP": r.docs.CURP,
+                            "ACTA_NAC": r.docs.ACTA_NAC,
+                            "INE": r.docs.INE,
+                            "COMP_DOMICILIO": r.docs.COMP_DOMICILIO,
+                            "ACTA_MATRIMONIO": r.docs.ACTA_MATRIMONIO,
+                        }
                     }
-                },
+                    for r in pm.representantes
+                ],
                 "docs": {
                     "CSF_SOCIEDAD": pm.docs.CSF_SOCIEDAD,
                     "ACTA_CONSTITUTIVA": pm.docs.ACTA_CONSTITUTIVA,

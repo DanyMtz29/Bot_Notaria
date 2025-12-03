@@ -1,4 +1,5 @@
 from bot.utils.common_imports import *
+from bot.utils.selenium_imports import *
 import shutil
 
 from bot.JSON.procesar_folder import Folder
@@ -97,22 +98,10 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
         partes.append(cl)
 
     time.sleep(1)
+    cerrar_popup_nueva_funcionalidad(driver)
     clt = Cliente(driver, wait)
     
     clt.procesar_partes(partes)
-
-    # #TODO por quitar
-    # print("ESTRACTION COMPLETADA")
-    # for part in partes:
-    #     if part.get("tipo") == "PM":
-    #         print(f"Sociedad: {part.get("nombre","")}, UIF: {part.get("uif","")}")    
-    #         rep = part.get("representante", {})
-    #         print(f"Rep: {rep.get("nombre","")}, UIF: {rep.get("uif","")}")
-    #     else:
-    #         print(f"Persona: {part.get("nombre","")}, UIF: {part.get("uif","")}")    
-    #         conyugue = part.get("esposa_o_esposo", {})
-    #         if conyugue:
-    #             print(f"  Esposo/a: {conyugue.get("nombre","")}, UIF: {conyugue.get("uif","")}")
 
     crear_proyecto(driver,wait,cliente_principal,partes, acto_nombre, descripcion, 
                   inm_list, cache_dir, escritura, abogado, otros)
@@ -137,8 +126,8 @@ def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmu
             roles_repetidos[rol] = 1
 
         if part.get("tipo") == "PM":
-            representante = part.get("representante", {})
-            if representante:
+            representantes = part.get("representantes", {})
+            for representante in representantes:
                 rep_rol = representante.get("rol", "").upper()
                 if rep_rol in roles_repetidos:
                     roles_repetidos[rep_rol] += 1
@@ -153,11 +142,13 @@ def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmu
                 else:
                     roles_repetidos[conyugue_rol] = 1
 
+
     partes_involucradas = []
+    
     for part in partes:
         if part.get("tipo") == "PM":
-            rep = part.get("representante", {})
-            if rep:
+            reps = part.get("representantes", {})
+            for rep in reps:
                 partes_involucradas.append(rep)
         else:
             conyugue = part.get("esposa_o_esposo", {})
@@ -287,3 +278,14 @@ def modificar_proyecto(driver, wait, acto) -> bool:
     
     return "Contadores" not in json_actualizado
     
+
+def cerrar_popup_nueva_funcionalidad(driver):
+    wait = WebDriverWait(driver, 5)
+
+    try:
+        wait.until(lambda d: d.find_element("xpath","//h4[contains(@class,'modal-title') and contains(.,'Nueva Funcionalidad')]"))
+    except Exception:
+        return
+    
+    btn = wait.until(lambda d: d.find_element("xpath","//ngb-modal-window//button[contains(text(),'Cerrar')]"))
+    btn.click()

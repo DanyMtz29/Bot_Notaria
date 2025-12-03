@@ -26,7 +26,9 @@ class Documentos(Base):
         clientes = []
         for parte in partes:
             if parte.get("tipo") == "PM":
-                clientes.append(parte.get("representante", {}))
+                reps = parte.get("representantes")
+                for rep in reps:
+                    clientes.append(rep)
             else:
                 if parte.get("esposa_o_esposo"):
                     clientes.append(parte.get("esposa_o_esposo"))
@@ -165,6 +167,7 @@ class Documentos(Base):
                         else:
                             self.add_coment(("PM",parte.get("nombre"), parte.get('rol')), doc_original)
                             flag = False
+                    else: flag = False
                 elif doc == "PODER_REPRESENTANTE":
                     doc_up = parte.get(doc)
                     if doc_up:
@@ -194,7 +197,9 @@ class Documentos(Base):
         clientes = []
         for parte in partes:
             if parte.get("tipo") == "PM":
-                clientes.append(parte.get("representante", {}))
+                reps = parte.get("representantes")
+                for rep in reps:
+                    clientes.append(rep)
             else:
                 if parte.get("esposa_o_esposo"):
                     clientes.append(parte.get("esposa_o_esposo"))
@@ -215,7 +220,7 @@ class Documentos(Base):
                             self.lista_comentarios[tup].append(doc_original)
                         else:
                             self.lista_comentarios[tup] = [doc_original]
-                        flag = False
+                    flag = False
                 else:
                     inp.send_keys(doc_up)
                     self.esperar_subida()

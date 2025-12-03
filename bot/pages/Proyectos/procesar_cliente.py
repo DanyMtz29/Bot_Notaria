@@ -18,7 +18,9 @@ class Cliente(Base):
         clientes = []
         for parte in partes:
             if parte.get("tipo") == "PM":
-                clientes.append(parte.get("representante", {}))
+                reps = parte.get("representantes")
+                for rep in reps:
+                    clientes.append(rep)
             else:
                 if parte.get("esposa_o_esposo"):
                     clientes.append(parte.get("esposa_o_esposo", {}))
@@ -36,14 +38,6 @@ class Cliente(Base):
             self.procesar_cliente(cl)
             
         logger.info("DESCARGADAS LISTAS UIF CORRESPONDIENTES COMPLETO")
-        
-        # for idx, party in enumerate(partes, start=1):
-        #     if party.get('tipo') == "PM":
-        #         self.procesar_cliente(party.get("representante"))
-        #     else:
-        #         if party.get("esposa_o_esposo"):
-        #             self.procesar_cliente(party.get("esposa_o_esposo"))
-        #     self.procesar_cliente(party)
 
     def procesar_cliente(self, party) -> None:
         self.CP.open_direct(self.url)

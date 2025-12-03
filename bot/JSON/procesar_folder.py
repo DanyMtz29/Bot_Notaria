@@ -1,6 +1,5 @@
 import os
 import json
-import time
 
 from loguru import logger
 from datetime import datetime
@@ -152,26 +151,44 @@ class Folder:
             docs = self._get(pm_obj, "docs")
             es_banco = self._get(pm_obj, "es_banco") or False
             carta_instruccion = self._get(pm_obj, "carta_instruccion")
-            representante = self._get(pm_obj, "representante")
-            if representante:
-                representante = {
-                    "representante": True,
-                    "rol": rol,
-                    "nombre": (self._get(representante, "nombre") or "").strip(),
-                    "rfc": (self._get(representante, "rfc") or "").strip(),
-                    "idcif": (
-                        self._get(representante, "idcif")
-                        or self._get(representante, "IdCIF")
-                        or self._get(representante, "IDCIF")
-                        or ""
-                    ),
-                    "docs": self._get(representante, "docs")
-                }
+            # representante = self._get(pm_obj, "representante")
+            # if representante:
+            #     representante = {
+            #         "representante": True,
+            #         "rol": rol,
+            #         "nombre": (self._get(representante, "nombre") or "").strip(),
+            #         "rfc": (self._get(representante, "rfc") or "").strip(),
+            #         "idcif": (
+            #             self._get(representante, "idcif")
+            #             or self._get(representante, "IdCIF")
+            #             or self._get(representante, "IDCIF")
+            #             or ""
+            #         ),
+            #         "docs": self._get(representante, "docs")
+            #     }
+            representantes = self._get(pm_obj, "representantes")
+            if representantes:
+                reps = []
+                for rep in representantes:
+                    representante = {
+                        "representante": True,
+                        "rol": rol,
+                        "nombre": (self._get(rep, "nombre") or "").strip(),
+                        "rfc": (self._get(rep, "rfc") or "").strip(),
+                        "idcif": (
+                            self._get(rep, "idcif")
+                            or self._get(rep, "IdCIF")
+                            or self._get(rep, "IDCIF")
+                            or ""
+                        ),
+                        "docs": self._get(rep, "docs")
+                    }
+                    reps.append(representante)
             if not nombre:
                 return None
             return {"tipo": "PM", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": idcif,
                     "docs": docs, "es_banco": es_banco, "carta_instruccion": carta_instruccion,
-                    "representante": representante}
+                    "representantes": reps}
         except Exception:
             return None
 

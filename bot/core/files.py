@@ -1,8 +1,7 @@
 """
-    26/11/2025 Modificacion en la linea 209
-    Se comento el if de que detecte solo la carpeta del representante
-    con el acronimo 'Representante'. Ahora solo con que detecte que 
-    hay una carpeta con eso se arma para saber que es un representante
+    |Fecha      Responsble Linea     Descripcion                                     |
+    |02/12/2025  Daniel    209      Se cambio el metodo para buscar un solo          |
+    |                               representante a que busque varios               |
 """
 # bot/core/files.py
 from __future__ import annotations
@@ -206,16 +205,27 @@ class ActosFinder:
         return ActosFinder._find_by_criteria(folder, DOC_EXTS, regexes=regexes)
 
     # ===================== SOCIEDAD / PM =====================
+    # @staticmethod
+    # def find_representante_folder(folder: str) -> Optional[str]:
+    #     if not folder or not os.path.isdir(folder):
+    #         return None
+    #     for name in os.listdir(folder):
+    #         full = os.path.join(folder, name)
+    #         #if os.path.isdir(full) and _strip_accents(name).lower() in {"representante", "representante legal"}:
+    #         if os.path.isdir(full):
+    #             return full
+    #     return None
     @staticmethod
-    def find_representante_folder(folder: str) -> Optional[str]:
+    def find_representantes_folders(folder: str) -> List[str]:
         if not folder or not os.path.isdir(folder):
-            return None
+            return []
+        reps = []
         for name in os.listdir(folder):
             full = os.path.join(folder, name)
-            #if os.path.isdir(full) and _strip_accents(name).lower() in {"representante", "representante legal"}:
+            norm = _strip_accents(name).lower()
             if os.path.isdir(full):
-                return full
-        return None
+                reps.append(full)
+        return reps
 
     @staticmethod
     def find_acta_constitutiva(folder: str) -> str | None:

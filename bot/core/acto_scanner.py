@@ -4,6 +4,10 @@
     |                                veces las CSF                                   |
     |29/11/2025  Daniel    229,226   Se comento la linea 226 y se quito la variable  |
     |                                rep_inside dentro del if de la linea 229        |
+    |29/11/2025  Daniel    219       Se comento el metodo anterior de solo añadir un |
+    |                                solo rep, ahora añade varios a la sociedad      |
+    |29/11/2025  Daniel    342       Se comento el metodo anterior de solo buscar la |
+    |                                CSF de un rep, ahora busca de todos los reps.   |
 
 """
 from __future__ import annotations
@@ -216,12 +220,17 @@ def _scan_sociedad(soc_dir: str, rol: str) -> Sociedad:
         except Exception as e:
             logger.warning("No se pudo parsear CSF PM {}: {}", d.CSF_SOCIEDAD, e)
 
-    
+    # # Representante PF (con su propio nombre desde su CSF)
+    # rep_folder = ActosFinder.find_representante_folder(soc_dir)
+    # if rep_folder:
+    #     s.representante = _scan_persona_fisica(rep_folder)
 
-    # Representante PF (con su propio nombre desde su CSF)
-    rep_folder = ActosFinder.find_representante_folder(soc_dir)
-    if rep_folder:
-        s.representante = _scan_persona_fisica(rep_folder)
+    rep_folders = ActosFinder.find_representantes_folders(soc_dir)
+    s.representantes = []
+
+    for rep_dir in rep_folders:
+        rep = _scan_persona_fisica(rep_dir)
+        s.representantes.append(rep)
 
     return s
 
@@ -275,12 +284,13 @@ def _scan_role_dir(role_dir: str, role_name: str) -> Tuple[List[PersonaFisica], 
         return pf_list, pm_list
 
     # fallback si no hay subcarpetas
-    rep_inside = ActosFinder.find_representante_folder(role_dir) is not None
+    #rep_inside = ActosFinder.find_representante_folder(role_dir) is not None
     has_pm_docs = ActosFinder.has_sociedad_docs(role_dir)
-    if rep_inside or has_pm_docs or _looks_like_pm_folder_name(os.path.basename(role_dir)):
+    if has_pm_docs or _looks_like_pm_folder_name(os.path.basename(role_dir)):
         pm_list.append(_scan_sociedad(role_dir, rol=role_name))
     else:
         pf_list.append(_build_pf_from_person_folder(role_dir, role_name))
+
     return pf_list, pm_list
 
 # ---------------- forzado de NOMBRES desde CSF (PF y PM) ----------------
@@ -332,17 +342,15 @@ def _force_names_from_csf(extraction: ActoExtraction) -> None:
             except Exception as e:
                 logger.warning("ForceName PM error con {}: {}", csf_soc, e)
 
-        if pm.representante and pm.representante.docs.CSF:
-            try:
-                rfc, idcif, nombre = csf_parser.extract_csf_fields(pm.representante.docs.CSF)
-                if nombre:
-                    pm.representante.nombre = nombre
-                if rfc:
-                    pm.representante.rfc = rfc
-                if idcif:
-                    pm.representante.idcif = idcif
-            except Exception as e:
-                logger.warning("ForceName Representante error con {}: {}", pm.representante.docs.CSF, e)
+        for rep in pm.representantes:
+            if rep.docs.CSF:
+                try:
+                    rfc, idcif, nombre = csf_parser.extract_csf_fields(rep.docs.CSF)
+                    if nombre: rep.nombre = nombre
+                    if rfc: rep.rfc = rfc
+                    if idcif: rep.idcif = idcif
+                except Exception as e:
+                    logger.warning("ForceName Representante error con {}: {}", pm.representante.docs.CSF, e)
 
 # ---------------- MAIN ----------------
 def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoExtraction:
@@ -396,7 +404,7 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
 
     out.otros = otros_dict
 
-    # Normaliza nombres desde CSF (tu rutina)
+    # Normaliza nombres desde CSF
     #_force_names_from_csf(out) ========================================================
 
     # Prepara partes planas para el matcher
@@ -410,8 +418,11 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
     for pm in out.partes_pm:
         if pm.nombre:
             partes_para_match.append({"rol": pm.rol, "nombre": pm.nombre})
-        if pm.representante and pm.representante.nombre:
-            partes_para_match.append({"rol": "REPRESENTANTE", "nombre": pm.representante.nombre})
+        for rep in pm.representantes:
+            if rep.nombre:
+                partes_para_match.append({"rol": "REPRESENTANTE", "nombre": rep.nombre})    
+        # if pm.representante and pm.representante.nombre:
+        #     partes_para_match.append({"rol": "REPRESENTANTE", "nombre": pm.representante.nombre})
 
     # Resolver acto canónico + cliente + escritura (soporta -, –, — y 2do guion)
     resolver = ActoResolver()
