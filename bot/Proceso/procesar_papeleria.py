@@ -156,23 +156,22 @@ class Documentos(Base):
                     for asam in asambleas:
                         self.subir_doc_select(asam, parte, doc_original)
                 elif doc == "carta_instruccion":
-                    print("ENTRA ACA")
-                    time.sleep(15)
                     es_banco = parte.get("es_banco", False)
-                    print("ES_BACNO?", es_banco)
-                    ####
                     doc_up = parte.get(doc)
-                    print("DOC_UOT", doc_up)
-                    ###
                     if es_banco:
                         doc_up = parte.get(doc)
-                        print("DOC_UOT", doc_up)
                         if doc_up:
                             self.subir_doc_input(doc_up, parte.get("nombre",""), doc_original)
                         else:
                             self.add_coment(("PM",parte.get("nombre"), parte.get('rol')), doc_original)
                             flag = False
-                    print("SALE")
+                elif doc == "PODER_REPRESENTANTE":
+                    doc_up = parte.get(doc)
+                    if doc_up:
+                        self.subir_doc_input(doc_up, parte.get("nombre",""), doc_original)
+                    else:
+                        self.add_coment(("PM",parte.get("nombre"), parte.get('rol')), doc_original)
+                        flag = False
         return flag
                     
 
@@ -392,8 +391,21 @@ class Documentos(Base):
         self.driver.execute_script("arguments[0].click();", cerrar)
         return True
 
+    def subir_otros(self, otros: list, doc: str) -> bool:
+        #doc_original = doc
+        """
+        = ["Expediente judicial", "Forma ISAI Amarilla (Registro Publico)", "Recibo de pago ISAI",
+        "Recibo de pago Derechos de Registro", "Acta de nacimiento del cónyuge", "Identificación oficial del cónyuge",
+        "Otros", "CURP del cónyuge", "Comprobante de Domicilio del cónyuge", "Lista nominal"]
+        """
+        # if doc == "Expediente judicial": doc = ""
+        # elif doc == "Poder del representante legal": doc = "PODER_REPRESENTANTE"
+        # elif doc == "Asambleas antecedente de la sociedad": doc = "ASAMBLEAS"
+        # elif doc == "Constancia de identificación fiscal Sociedad": doc = "CSF_SOCIEDAD"
+        # elif doc == "Carta de instrucción vigente": doc = "carta_instruccion"
 
-    def procesamiento_papeleria(self,documents: list,docs, partes:list, inmuebles: list):
+
+    def procesamiento_papeleria(self,documents: list,docs, partes:list, inmuebles: list, otros: list):
         """
             PROCESAMIENTO DE TODOS LOS DOCUMENTOS A SUBIR JUNTO CON SELENIUM
         """
@@ -404,12 +416,12 @@ class Documentos(Base):
                             "Constancia de identificación fiscal (compareciente o partes)", "Acta de nacimiento (compareciente o partes)",
                             "CURP (compareciente o partes)", "Acta de matrimonio (compareciente o partes)"]
         papeleria_sociedad = ["Acta constitutiva (antecedente)", "Poder del representante legal", "Asambleas antecedente de la sociedad",
-                            "Constancia de identificación fiscal Sociedad", "Carta de instrucción vigente",
-                            "Escritura Antecedente de la apertura del crédito, convenios o constitución del fideicomiso"]
+                            "Constancia de identificación fiscal Sociedad", "Carta de instrucción vigente",]
         
         papeleria_otros = ["Expediente judicial", "Forma ISAI Amarilla (Registro Publico)", "Recibo de pago ISAI",
                         "Recibo de pago Derechos de Registro", "Acta de nacimiento del cónyuge", "Identificación oficial del cónyuge",
-                        "Otros", "CURP del cónyuge", "Comprobante de Domicilio del cónyuge"]
+                        "Otros", "CURP del cónyuge", "Comprobante de Domicilio del cónyuge", "Lista nominal", "Constancia de pago", 
+                        "Escritura Antecedente de la apertura del crédito, convenios o constitución del fideicomiso"]
         
         for doc in documents:
             print(f"DOC PROCESANDO: {doc}")
@@ -419,11 +431,17 @@ class Documentos(Base):
             elif doc in papeleria_basica:
                 if self.subir_doc_partes_basicas(partes, doc):
                     docs.set_faltante_by_description(doc, marcar=True)
-            if doc in papeleria_inmuebles:
+            elif doc in papeleria_inmuebles:
                 if self.subir_doc_inmuebles(inmuebles,doc):
                     docs.set_faltante_by_description(doc, marcar=True)
-            if doc in papeleria_sociedad:
+            elif doc in papeleria_sociedad:
                 if self.subir_papeleria_sociedad(partes, doc):
+                    docs.set_faltante_by_description(doc, marcar=True)
+            elif doc in papeleria_otros:
+                if doc in otros:
+                    doc_up = otros[doc]
+                    for d in doc_up:
+                        self.subir_doc_input(d,"Parte del acto", doc)
                     docs.set_faltante_by_description(doc, marcar=True)
         
         but = self.driver.find_element(By.XPATH,f"//div[@class='col-md-10']//div[@class='text-end']//button[@type='button']")

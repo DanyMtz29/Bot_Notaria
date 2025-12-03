@@ -81,6 +81,7 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
     acto_nombre = getattr(extraction, "acto_nombre", os.path.basename(acto))
     cliente_principal = getattr(extraction, "cliente_principal")
     inm_list = getattr(extraction, "inmuebles")
+    otros = getattr(extraction, "otros")
 
     #Guarda el json
     json_path = actos_folder._ensure_cache_and_write_json(acto, extraction)
@@ -100,23 +101,23 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
     
     clt.procesar_partes(partes)
 
-    #TODO por quitar
-    print("ESTRACTION COMPLETADA")
-    for part in partes:
-        if part.get("tipo") == "PM":
-            print(f"Sociedad: {part.get("nombre","")}, UIF: {part.get("uif","")}")    
-            rep = part.get("representante", {})
-            print(f"Rep: {rep.get("nombre","")}, UIF: {rep.get("uif","")}")
-        else:
-            print(f"Persona: {part.get("nombre","")}, UIF: {part.get("uif","")}")    
-            conyugue = part.get("esposa_o_esposo", {})
-            if conyugue:
-                print(f"  Esposo/a: {conyugue.get("nombre","")}, UIF: {conyugue.get("uif","")}")
+    # #TODO por quitar
+    # print("ESTRACTION COMPLETADA")
+    # for part in partes:
+    #     if part.get("tipo") == "PM":
+    #         print(f"Sociedad: {part.get("nombre","")}, UIF: {part.get("uif","")}")    
+    #         rep = part.get("representante", {})
+    #         print(f"Rep: {rep.get("nombre","")}, UIF: {rep.get("uif","")}")
+    #     else:
+    #         print(f"Persona: {part.get("nombre","")}, UIF: {part.get("uif","")}")    
+    #         conyugue = part.get("esposa_o_esposo", {})
+    #         if conyugue:
+    #             print(f"  Esposo/a: {conyugue.get("nombre","")}, UIF: {conyugue.get("uif","")}")
 
     crear_proyecto(driver,wait,cliente_principal,partes, acto_nombre, descripcion, 
-                  inm_list, cache_dir, escritura, abogado)
+                  inm_list, cache_dir, escritura, abogado, otros)
     
-def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmuebles, cache_dir, escritura,abogado):
+def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmuebles, cache_dir, escritura,abogado, otros):
     """
         CREA EL PROYECTO EN EL PORTAL
     """
@@ -192,7 +193,7 @@ def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmu
     time.sleep(2)
 
     proceso_docs = Documentos(driver, wait)
-    proceso_docs.procesamiento_papeleria(docs.list_all_required_descriptions(), docs, partes, inmuebles)
+    proceso_docs.procesamiento_papeleria(docs.list_all_required_descriptions(), docs, partes, inmuebles, otros)
     logger.info("INFORMACION DE PESTAÑA DE 'DOCUMENTOS' COLOCADA CORRECTAMENTE")
     proceso_docs.comentarios_y_guardar_proyecto(cache_dir,descripcion, escritura,cliente,abogado)
 

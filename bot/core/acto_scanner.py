@@ -7,7 +7,7 @@
 
 """
 from __future__ import annotations
-import os
+import os, re
 from typing import List, Dict, Optional, Tuple
 from loguru import logger
 
@@ -16,6 +16,7 @@ from bot.core.acto_detector import ActoResolver
 from bot.models.acto_models import (
     ActoExtraction, Persona, PersonaFisica, Sociedad, Inmueble, DocumentoPaths
 )
+
 from bot.core import csf as csf_parser
 
 IGNORED_DIRS = {
@@ -97,6 +98,46 @@ PM_NAME_HINTS = {
     "sa de cv", "s.a. de c.v", "sc", "sociedad", "desarrolladora", "constructora",
     "inmobiliaria", "industria", "comercial", "comercializadora", "servicios",
 }
+
+TOP_OTHERS_PATTERNS = {
+    "Expediente judicial": [r"expediente\s*jud", r"exp\s*jud"],
+    "Constancia de pago": [r"constancia\s*pago", r"constancia de pago"],
+    "Forma ISAI Amarilla (Registro Publico)": [r"isai.*amarilla", r"forma\s*amarilla", r"forma\s*isai"],
+    "Recibo de pago ISAI": [r"pago\s*isai", r"recibo\s*isai"],
+    "Recibo de pago Derechos de Registro": [r"pago.*registro", r"recibo.*derechos.*registro"],
+    "Escritura Antecedente de la apertura del crédito, convenios o constitución del fideicomiso": [r"escritura\s*ant",r"escritura.*(credito|fidei|convenios)",r"ant\s*(credito|fidei)",r"fideicomiso\s*const"],
+    "Acta de nacimiento del conyuge": [r"acta.*nacimiento.*(cony|c[oó]nyu)"],
+    "Identificación oficial del conyuge": [r"(ine|ife|identificacion).*(cony|c[oó]nyu)"],
+    "Lista nominal": [r"lista.*nominal"],
+    "Comprobante de Domicilio del conyuge": [r"(comp.*dom)|(recibo.*(cfe|agua|luz)).*(cony|c[oó]nyu)"],
+    "CURP del conyuge": [r"curp.*(cony|c[oó]nyu)"],
+}
+
+def _match_top_other(name: str):
+    n = name.lower()
+
+    # Regla 1: empieza con "_"
+    if name.startswith("_"):
+        return "Otros"
+
+    # Regla 2: patrones exactos
+    for key, pats in TOP_OTHERS_PATTERNS.items():
+        for pat in pats:
+            if re.search(pat, n):
+                return key
+
+    # Regla 3: similitud por tokens (mínimo 50%)
+    def tokens(s): 
+        return set(re.split(r"[^a-z0-9]+", s.lower()))
+
+    nt = tokens(n)
+    for key in TOP_OTHERS_PATTERNS:
+        kt = tokens(key)
+        if len(nt & kt) / max(1, len(kt)) >= 0.5:
+            return key
+
+    return None
+
 def _looks_like_pm_folder_name(name: str) -> bool:
     n = name.lower()
     return any(h in n for h in PM_NAME_HINTS)
@@ -341,7 +382,19 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
             break
 
     # Otros
-    out.otros = sorted(os.path.join(acto_dir, f) for f in top_files)
+    #out.otros = sorted(os.path.join(acto_dir, f) for f in top_files)
+    # --- NUEVA CLASIFICACIÓN DE OTROS ---
+    otros_dict = {}
+
+    for f in top_files:
+        category = _match_top_other(f)
+        if not category:
+            continue  # ignorar archivo
+
+        full = os.path.join(acto_dir, f)
+        otros_dict.setdefault(category, []).append(full)
+
+    out.otros = otros_dict
 
     # Normaliza nombres desde CSF (tu rutina)
     #_force_names_from_csf(out) ========================================================
