@@ -58,7 +58,7 @@ def procesar_actos(driver, wait,abogado, actos_root):
                     print(f"Reintentando {attempts}")
                     time.sleep(5)
         time.sleep(3)
-        if it > 0:
+        if it > 2:
             break
         attempts = 3
         it+=1

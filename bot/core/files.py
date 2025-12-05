@@ -311,6 +311,7 @@ class ActosFinder:
             re.compile(r"\bescritura\s+(de\s+)?antecedente\b"),
             re.compile(r"\bescritura\s+antecedente\b"),
             re.compile(r"\bantecedente\s+escritura\b"),
+            re.compile(r"^Escritura.*", re.IGNORECASE),
         ]
         return ActosFinder._find_by_criteria(folder, DOC_EXTS, regexes=regexes)
 

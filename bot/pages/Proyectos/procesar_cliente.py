@@ -44,9 +44,9 @@ class Cliente(Base):
         self.CP.assert_loaded()
 
         time.sleep(1)
-        if party["rfc"] != None:
+        if party["rfc"] != None and party["rfc"] != "":
             found = self.CP.search_by_name(party["rfc"], timeout=12)
-        elif party["nombre"] != None:
+        elif party["nombre"] != None and party["nombre"] != "":
             found = self.CP.search_by_name(party["nombre"], timeout=12)
         else:
             found = None

@@ -178,7 +178,7 @@ def _scan_persona_fisica(person_dir: str) -> Persona:
 
 def _find_spouse_dir_inside_person(person_dir: str) -> Optional[str]:
     for d in _list_dirs(person_dir):
-        if d in SPOUSE_DIR_NAMES and not _is_ignored_dir(d):
+        if d.lower() in SPOUSE_DIR_NAMES and not _is_ignored_dir(d):
             return os.path.join(person_dir, d)
     return None
 
@@ -376,6 +376,7 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
     for d in top_dirs:
         d = d.lower()
         if d in INMUEBLE_DIR_NAMES:
+            out.inmuebles.extend(_scan_inmuebles(acto_dir, d))
             continue
         if d not in KNOWN_ROLES or d not in allowed_roles:
             continue
@@ -385,10 +386,11 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
         out.partes_pm.extend(pm_found)
 
     # Inmuebles
-    for c in INMUEBLE_DIR_NAMES:
-        if c in top_dirs:
-            out.inmuebles.extend(_scan_inmuebles(acto_dir, c))
-            break
+    # for c in INMUEBLE_DIR_NAMES:
+    #     if c.lower() in top_dirs:
+    #         print("Entra")
+    #         out.inmuebles.extend(_scan_inmuebles(acto_dir, c))
+    #         break
 
     # Otros
     #out.otros = sorted(os.path.join(acto_dir, f) for f in top_files)

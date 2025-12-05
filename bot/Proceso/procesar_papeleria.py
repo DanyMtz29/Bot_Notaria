@@ -20,8 +20,7 @@ class Documentos(Base):
         # print("CHECAR OCULTO: ")
         # print(oculto.get_attribute("outerHTML"))
 
-    def subir_lista_uifs(self, partes) -> bool:
-        inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
+    def subir_lista_uifs(self, partes, doc: str) -> bool:
         
         clientes = []
         for parte in partes:
@@ -39,16 +38,15 @@ class Documentos(Base):
         for cl in clientes:
             print(f"Cliente: {cl.get('nombre','')} - UIF: {cl.get('uif','')}\n")
             if not cl.get("uif"):
-                #add_coment(cl.get("nombre"), "Consulta UIF Lista Negra")
                 tup = ("PF",cl.get("nombre"), cl.get('rol'))
                 if tup in self.lista_comentarios:
-                    self.lista_comentarios[tup].append("Consulta UIF Lista Negra")
+                    self.lista_comentarios[tup].append(doc)
                 else:
-                    self.lista_comentarios[tup] = ["Consulta UIF Lista Negra"]
+                    self.lista_comentarios[tup] = [doc]
                 flag = False
                 continue
             
-            self.subir_doc_select(cl.get("uif"), cl.get("nombre"), "Consulta UIF Lista Negra")
+            self.subir_doc_input(cl.get("uif"), cl.get("nombre"), doc)
             # inp.send_keys(cl.get("uif"))
             # #time.sleep(3)
             # self.esperar_subida()
@@ -420,12 +418,16 @@ class Documentos(Base):
                         "Recibo de pago Derechos de Registro", "Acta de nacimiento del cónyuge", "Identificación oficial del cónyuge",
                         "Otros", "CURP del cónyuge", "Comprobante de Domicilio del cónyuge", "Lista nominal", "Constancia de pago", 
                         "Escritura Antecedente de la apertura del crédito, convenios o constitución del fideicomiso"]
+        listas_uifs = ["Formulario Expediente UIF", "Consulta UIF Lista Negra"]
         
+        ya_subio_uifs = False # En algunos actos viene 2 veces la uif, para esto es la variable
+
         for doc in documents:
             print(f"DOC PROCESANDO: {doc}")
-            if doc == "Consulta UIF Lista Negra":
-                if self.subir_lista_uifs(partes):
+            if doc in listas_uifs:
+                if self.subir_lista_uifs(partes, doc) and not ya_subio_uifs:
                     docs.set_faltante_by_description(doc, marcar=True)
+                    ya_subio_uifs = True
             elif doc in papeleria_basica:
                 if self.subir_doc_partes_basicas(partes, doc):
                     docs.set_faltante_by_description(doc, marcar=True)
@@ -442,6 +444,9 @@ class Documentos(Base):
                         self.subir_doc_input(d,"Parte del acto", doc)
                     docs.set_faltante_by_description(doc, marcar=True)
         
+        #TODO
+        #Si la variable de listas uifs esta en false, se debe de subir a la carpeta del servidor
+
         but = self.driver.find_element(By.XPATH,f"//div[@class='col-md-10']//div[@class='text-end']//button[@type='button']")
         self.driver.execute_script("arguments[0].click();", but)
         time.sleep(1) 
