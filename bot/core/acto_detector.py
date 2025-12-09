@@ -59,14 +59,15 @@ ACTOS_CANONICOS: List[str] = [
     "EXTINCIÓN DE PATRIMONIO FAMILIAR CONCLUSIÓN",
     "FIDEICOMISO",
     "INVENTARIO Y AVALUO SUCESION",
+    "PERMUTA"
     "PODER O MANDATO",
     "PROTOCOLIZACION CONDOMINIO O FRACCIONAMIENTO",
     "PROTOCOLIZACION DE ACTA DE ASAMBLEA",
     "PROTOCOLIZACION DE ADECUACION DE SUPERFICIE",
     "PROTOCOLIZACION DE CESION DE DERECHOS",
     "PROTOCOLIZACION DE CONTRATO EN GENERAL",
-    "PROTOCOLIZACIÓN DE OFICIO DE FUSIÓN, SUBDIVISIÓN, RELOTIFICACION Y/O LOTIFICACION",
-    "PROTOCOLIZACIÓN DE OFICIO DE FUSIÓN, SUBDIVISIÓN, RELOTIFICACION Y/O LOTIFICACION; CON DIVISION DE LA COSA COMUN",
+    "PROTOCOLIZACIÓN DE OFICIO DE FUSIÓN, SUBDIVISIÓN, RELOTIFICAICON Y/O LOTIFICACION",
+    "PROTOCOLIZACIÓN DE OFICIO DE FUSIÓN, SUBDIVISIÓN, RELOTIFICAICON Y/O LOTIFICACION; CON DIVISION DE LA COSA COMUN",
     "PROTOCOLIZACION DE SENTENCIA DE DIVORCIO",
     "RECONOCIMIENTO DE ADEUDO (CONSTITUCION DE HIPOTECA)",
     "REDENCIÓN PASIVOS CON MUTUO DE FOVISSSTE",
@@ -139,6 +140,7 @@ ALIAS_POR_ACTO: Dict[str, List[str]] = {
     "EXTINCIÓN DE PATRIMONIO FAMILIAR CONCLUSIÓN": ["extincion patrimonio","extinción patrimonio familiar"],
     "FIDEICOMISO": ["fideicomiso"],
     "INVENTARIO Y AVALUO SUCESION": ["inventario y avaluo","inventario y avalúo","inventario avaluo sucesion"],
+    "PERMUTA": ["permuta", "perm", "perm."],
     "PODER O MANDATO": ["poder","mandato","otorgamiento de poder"],
     "REVOCACIÓN DE PODER": ["revocacion de poder","revocar poder"],
     "TESTAMENTO": ["testamento"],
@@ -486,6 +488,90 @@ class ActoResolver:
         dbg["actos_detectados"] = actos_detectados
 
         return acto_principal, actos_relacionados, escritura, dbg
+
+    def normalizar_acto(self,acto_usuario: str):
+        """
+        Recibe un acto escrito por el usuario (ej: 'compra venta infonavit')
+        y devuelve el nombre canónico real (ej: 'COMPRAVENTA INFONAVIT').
+
+        Usa las mismas reglas que detect_acto(), pero aplicado a 1 solo acto.
+        """
+        dbg = {}
+        acto_raw = acto_usuario.strip()
+        dbg["input"] = acto_raw
+
+        # Normalizaciones
+        cand_tokens = set(_tokens(acto_raw))
+        titulo_norm = _norm(acto_raw)
+        dbg["tokens"] = cand_tokens
+        dbg["titulo_norm"] = titulo_norm
+
+        # ======================================================
+        # 1) Reglas fuertes
+        # ======================================================
+        if "compraventa" in cand_tokens and "fovissste" in cand_tokens:
+            return "COMPRAVENTA FOVISSSTE"
+
+        if "infonavit" in cand_tokens and (
+            "compraventa" in cand_tokens or
+            "compra" in cand_tokens or
+            "venta" in cand_tokens or
+            "cv" in cand_tokens
+        ):
+            return "COMPRAVENTA INFONAVIT"
+
+        if "carta" in cand_tokens and "permiso" in cand_tokens:
+            return "AFP / CARTA PERMISO MENOR DE EDAD"
+
+        # ======================================================
+        # 2) Alias directos (ej: "cpv", "acto fe hechos", etc.)
+        # ======================================================
+        for alias_norm, canon in ALIAS_MAP.items():
+            if alias_norm in titulo_norm:
+                return canon
+
+        # ======================================================
+        # 3) Scoring con TOKENS_CANON
+        # ======================================================
+        best = None
+        best_score = -1.0
+
+        for canon, canon_toks in TOKENS_CANON.items():
+            if not canon_toks:
+                continue
+
+            overlap = len(canon_toks & cand_tokens)
+            if overlap == 0:
+                continue
+
+            score = (
+                3 * overlap +
+                5 * (1.0 if canon_toks.issubset(cand_tokens) else 0.0) +
+                4 * _jaccard(canon_toks, cand_tokens)
+            )
+
+            # Boosts extra
+            if "infonavit" in cand_tokens and "infonavit" in canon_toks:
+                score += 3
+            if "fovissste" in cand_tokens and "fovissste" in canon_toks:
+                score += 3
+
+            if score > best_score:
+                best_score = score
+                best = canon
+
+        if best:
+            return best
+
+        # ======================================================
+        # 4) Fallback razonable
+        # ======================================================
+        if "compraventa" in cand_tokens:
+            return "COMPRAVENTA"
+
+        # Último recurso: mayus del input
+        return acto_raw.upper()
+
 
     # ---------- cliente principal ----------
     def _cliente_hint(self, folder_name: str) -> str:

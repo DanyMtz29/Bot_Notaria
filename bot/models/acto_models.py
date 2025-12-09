@@ -46,6 +46,8 @@ class Persona:
     docs: DocumentoPaths = field(default_factory=DocumentoPaths)
     uif: str = None
     unknown: bool = False
+    acto_perteneciente: str = None
+    rol: Optional[str] = None
 
     def get(self, data:str):
         if data == "nombre": return self.nombre
@@ -62,8 +64,8 @@ class PersonaFisica:
 @dataclass
 class Sociedad:
     rol: str = ""
-    nombre: Optional[str] = None          
-    rfc: Optional[str] = None             
+    nombre: Optional[str] = None
+    rfc: Optional[str] = None
     idcif: Optional[str] = None           
     #representante: Optional[Persona] = None
     representantes: List[Persona] = field(default_factory=list)
@@ -74,6 +76,7 @@ class Sociedad:
     carta_instruccion: Optional[str] = None   
     uif: str = None
     unknown: bool = False
+    acto_perteneciente: str = None
 
 @dataclass
 class Inmueble:
@@ -113,6 +116,8 @@ class ActoExtraction:
                     "nombre": pf.persona.nombre,
                     "rfc": pf.persona.rfc,
                     "idcif": pf.persona.idcif,
+                    "rol": pf.persona.rol,
+                    "acto_perteneciente": pf.persona.acto_perteneciente,
                     "docs": {
                         "CSF": pf.persona.docs.CSF,
                         "CURP": pf.persona.docs.CURP,
@@ -127,6 +132,8 @@ class ActoExtraction:
                     "nombre": pf.esposa_o_esposo.nombre,
                     "rfc": pf.esposa_o_esposo.rfc,
                     "idcif": pf.esposa_o_esposo.idcif,
+                    "rol": pf.persona.rol,
+                    "acto_perteneciente": pf.persona.acto_perteneciente,
                     "docs": {
                         "CSF": pf.esposa_o_esposo.docs.CSF,
                         "CURP": pf.esposa_o_esposo.docs.CURP,
@@ -145,6 +152,8 @@ class ActoExtraction:
                 "nombre": pm.nombre,
                 "rfc": pm.rfc,
                 "idcif": pm.idcif,
+                "rol": pm.rol,
+                "acto_perteneciente": pm.acto_perteneciente,
                 # "representante": None if not pm.representante else {
                 #     "nombre": pm.representante.nombre,
                 #     "rfc": pm.representante.rfc,
@@ -163,6 +172,8 @@ class ActoExtraction:
                         "nombre": r.nombre,
                         "rfc": r.rfc,
                         "idcif": r.idcif,
+                        "rol": r.rol,
+                        "acto_perteneciente": r.acto_perteneciente,
                         "docs": {
                             "CSF": r.docs.CSF,
                             "CURP": r.docs.CURP,

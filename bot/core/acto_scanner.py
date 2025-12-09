@@ -14,6 +14,7 @@ from __future__ import annotations
 import os, re
 from typing import List, Dict, Optional, Tuple
 from loguru import logger
+from bot.utils.acto_roles import ActoRoles
 
 from bot.core.files import ActosFinder
 from bot.core.acto_detector import ActoResolver
@@ -23,9 +24,11 @@ from bot.models.acto_models import (
 
 from bot.core import csf as csf_parser
 
+resolver = ActoResolver()
+
 IGNORED_DIRS = {
     "__pycache__", ".git", ".svn", ".idea", ".vscode",
-    "SubActo", "SubActos", "Generados_Bot", "_cache_bot",
+    "SubActo", "SubActos", "Generados_Bot", "_cache_bot", "listas uifs",
 }
 IGNORED_PREFIXES = ("SubActo", "Subacto", "subacto", "Generados_", "~$")
 
@@ -33,7 +36,7 @@ bancos_keywords = [
     "bbva", "banorte", "santander", "hsbc",
     "scotiabank", "banregio", "citibanamex",
     "infonavit", "fovissste", "sofom", "sofol",
-    "banco"
+    "banco", "Ban."
 ]
 
 def _is_ignored_dir(name: str) -> bool:
@@ -71,7 +74,7 @@ KNOWN_ROLES = {
     "socios", "accionistas", "administrador", "comisario",
     "presidente", "secretario", "tesorero", "vocales",
     "comprador/acreditado", "vendedor terreno", "vendedor construccion",
-    "hij@", "madre", "padre"
+    "hij@", "madre", "padre", "usufructuario"
 }
 
 ACTO_ROLE_MAP: Dict[str, set] = {
@@ -81,18 +84,39 @@ ACTO_ROLE_MAP: Dict[str, set] = {
     "afp": {"apoderado", "poderdante", "testigo"},
 }
 
-def _detect_acto_type(acto_nombre: str) -> Tuple[str, set]:
+def _detect_acto_type(acto_nombre: str) -> str:
     name = (acto_nombre or "").lower()
-    def has(*tokens): return all(t in name for t in tokens)
-    if has("compraventa", "fovissste"):
-        return "compraventa fovissste", ACTO_ROLE_MAP["compraventa fovissste"]
-    if "compraventa" in name:
-        return "compraventa", ACTO_ROLE_MAP["compraventa"]
-    if "protocoliz" in name:
-        return "protocolizacion", ACTO_ROLE_MAP["protocolizacion"]
-    if name.strip().startswith("afp") or "acta de fe" in name or "fe de hechos" in name:
-        return "afp", ACTO_ROLE_MAP["afp"]
-    return "desconocido", KNOWN_ROLES
+
+    #Buscar los actos
+    primer_guion = name.find("-")
+    resto = name[primer_guion+1:]
+    segundo_guion = resto.find("-")
+    actos = resto[:segundo_guion].strip().split(",")
+    
+    name = actos[0]
+
+    actos_normalizados = []
+
+    for ac in actos:
+        ac_normalizado = resolver.normalizar_acto(ac)
+        actos_normalizados.append(ac_normalizado)
+    acto_principal = actos_normalizados[0]
+
+
+    # def has(*tokens): return all(t in name for t in tokens)
+    # if has("compraventa", "fovissste"):
+    #     acto_principal = "compraventa fovissste"
+    # elif "compraventa" in name:
+    #     acto_principal = "compraventa"
+    # elif "protocoliz" in name:
+    #     acto_principal = "protocolizacion"
+    # elif name.strip().startswith("afp") or "acta de fe" in name or "fe de hechos" in name:
+    #     acto_principal = "afp"
+    # #elif name.strip().startswith("usufructo") or "cancelacion de usufructo" in name or "fe de hechos" in name:
+    # elif name.strip().find("usufructo"):
+    #     acto_principal = "cancelacion de usufructo",actos
+    
+    return acto_principal,actos_normalizados
 
 INMUEBLE_DIR_NAMES = {"inmueble", "inmuebles"}
 SPOUSE_DIR_NAMES = {"esposa", "esposo", "conyuge", "cónyugue"}
@@ -147,9 +171,10 @@ def _looks_like_pm_folder_name(name: str) -> bool:
     return any(h in n for h in PM_NAME_HINTS)
 
 # ---------------- PF ----------------
-def _scan_persona_fisica(person_dir: str) -> Persona:
+def _scan_persona_fisica(person_dir: str, role_name: str, acto_perteneciente: str) -> Persona:
     p = Persona()
-
+    p.acto_perteneciente = acto_perteneciente
+    p.rol = role_name
     csf_path = ActosFinder.find_csf_in_folder(person_dir)
     if csf_path:
         p.docs.CSF = csf_path
@@ -182,17 +207,18 @@ def _find_spouse_dir_inside_person(person_dir: str) -> Optional[str]:
             return os.path.join(person_dir, d)
     return None
 
-def _build_pf_from_person_folder(person_dir: str, role_name: str) -> PersonaFisica:
-    pf = PersonaFisica(rol=role_name, persona=_scan_persona_fisica(person_dir))
+def _build_pf_from_person_folder(person_dir: str, acto_perteneciente: str, role_name: str) -> PersonaFisica:
+    pf = PersonaFisica(rol=role_name, persona=_scan_persona_fisica(person_dir, role_name, acto_perteneciente))
     if pf.persona.docs.ACTA_MATRIMONIO:
         spouse_dir = _find_spouse_dir_inside_person(person_dir)
         if spouse_dir:
-            pf.esposa_o_esposo = _scan_persona_fisica(spouse_dir)
+            pf.esposa_o_esposo = _scan_persona_fisica(spouse_dir, role_name, acto_perteneciente)
     return pf
 
 # ---------------- PM ----------------
-def _scan_sociedad(soc_dir: str, rol: str) -> Sociedad:
+def _scan_sociedad(soc_dir: str,acto_perteneciente: str, rol: str) -> Sociedad:
     s = Sociedad(rol=rol, nombre=os.path.basename(soc_dir))
+    s.acto_perteneciente = acto_perteneciente
     d = DocumentoPaths()
 
     d.CSF_SOCIEDAD = ActosFinder.find_csf_in_folder(soc_dir)
@@ -201,7 +227,7 @@ def _scan_sociedad(soc_dir: str, rol: str) -> Sociedad:
     d.ASAMBLEAS = ActosFinder.find_asambleas(soc_dir)
     d.OTROS = ActosFinder.find_otros_sociedad(soc_dir)
     s.docs = d
-
+    
     #NUEVO PARA VER SI ES UN BACNO===============================
     nombre_lower = s.nombre.lower() if s.nombre else ""
 
@@ -229,7 +255,7 @@ def _scan_sociedad(soc_dir: str, rol: str) -> Sociedad:
     s.representantes = []
 
     for rep_dir in rep_folders:
-        rep = _scan_persona_fisica(rep_dir)
+        rep = _scan_persona_fisica(rep_dir, rol, acto_perteneciente)
         s.representantes.append(rep)
 
     return s
@@ -265,92 +291,43 @@ def _scan_inmuebles(acto_dir: str, inm_dir_name: str) -> List[Inmueble]:
         return [_scan_inmueble_dir(inm_path, name=inm_dir_name)]
 
 # ---------------- routing de rol (PF/PM por subcarpeta) ----------------
-def _scan_role_dir(role_dir: str, role_name: str) -> Tuple[List[PersonaFisica], List[Sociedad]]:
+def _scan_role_dir(role_dir: str, role_name: str, actos: list) -> Tuple[List[PersonaFisica], List[Sociedad]]:
     pf_list: List[PersonaFisica] = []
     pm_list: List[Sociedad] = []
 
-    subdirs = [d for d in _list_dirs(role_dir) if not _is_ignored_dir(d)]
+    # print("roles: ",ActoRoles.MAPA["cancelacion de usufructo".upper()])
+    # print("actos: ",actos)
 
+    subdirs = [d for d in _list_dirs(role_dir) if not _is_ignored_dir(d)]
+    acto_perteneciente = "desconocido"
+    for acto in actos:
+        acto = acto.strip().upper()
+        if role_name in ActoRoles.MAPA[acto]:
+            acto_perteneciente = acto
+            break
     if subdirs:
         for d in subdirs:
             full = os.path.join(role_dir, d)
             #rep_inside = ActosFinder.find_representante_folder(full) is not None
             has_pm_docs = ActosFinder.has_sociedad_docs(full)
             name_looks_pm = _looks_like_pm_folder_name(d)
+
             if has_pm_docs or name_looks_pm:
-                pm_list.append(_scan_sociedad(full, rol=role_name))
+                pm_list.append(_scan_sociedad(full,acto_perteneciente, rol=role_name))
             else:
-                pf_list.append(_build_pf_from_person_folder(full, role_name))
+                pf_list.append(_build_pf_from_person_folder(full,acto_perteneciente, role_name))
         return pf_list, pm_list
     
     # fallback si no hay subcarpetas
     #rep_inside = ActosFinder.find_representante_folder(role_dir) is not None
     has_pm_docs = ActosFinder.has_sociedad_docs(role_dir)
+    
     if has_pm_docs or _looks_like_pm_folder_name(os.path.basename(role_dir)):
-        pm_list.append(_scan_sociedad(role_dir, rol=role_name))
+        pm_list.append(_scan_sociedad(role_dir,acto_perteneciente, rol=role_name))
     else:
-        pf_list.append(_build_pf_from_person_folder(role_dir, role_name))
-
+        pf_list.append(_build_pf_from_person_folder(role_dir, acto_perteneciente, role_name))
+    
     return pf_list, pm_list
-
-# ---------------- forzado de NOMBRES desde CSF (PF y PM) ----------------
-def _force_names_from_csf(extraction: ActoExtraction) -> None:
-    """
-    Recorre todas las partes y, si hay CSF, vuelve a parsear y **sobrescribe** el nombre
-    (y RFC/idCIF donde aplique) para evitar que se quede el acrónimo de carpeta.
-    """
-    # PF
-    for pf in extraction.partes_pf:
-        csf = pf.persona.docs.CSF
-        if csf:
-            try:
-                rfc, idcif, nombre = csf_parser.extract_csf_fields(csf)
-                if nombre:
-                    pf.persona.nombre = nombre  # FORZAR nombre completo
-                if rfc:
-                    pf.persona.rfc = rfc
-                if idcif:
-                    pf.persona.idcif = idcif
-            except Exception as e:
-                logger.warning("ForceName PF error con {}: {}", csf, e)
-
-        # Cónyuge si existe
-        if pf.esposa_o_esposo and pf.esposa_o_esposo.docs.CSF:
-            try:
-                rfc, idcif, nombre = csf_parser.extract_csf_fields(pf.esposa_o_esposo.docs.CSF)
-                if nombre:
-                    pf.esposa_o_esposo.nombre = nombre
-                if rfc:
-                    pf.esposa_o_esposo.rfc = rfc
-                if idcif:
-                    pf.esposa_o_esposo.idcif = idcif
-            except Exception as e:
-                logger.warning("ForceName Conyuge error con {}: {}", pf.esposa_o_esposo.docs.CSF, e)
-
-    # PM
-    for pm in extraction.partes_pm:
-        csf_soc = pm.docs.CSF_SOCIEDAD
-        if csf_soc:
-            try:
-                rfc, idcif, nombre = csf_parser.extract_csf_fields(csf_soc)
-                if nombre:
-                    pm.nombre = nombre  # razón social completa
-                if rfc:
-                    pm.rfc = rfc
-                if idcif:
-                    pm.idcif = idcif
-            except Exception as e:
-                logger.warning("ForceName PM error con {}: {}", csf_soc, e)
-
-        for rep in pm.representantes:
-            if rep.docs.CSF:
-                try:
-                    rfc, idcif, nombre = csf_parser.extract_csf_fields(rep.docs.CSF)
-                    if nombre: rep.nombre = nombre
-                    if rfc: rep.rfc = rfc
-                    if idcif: rep.idcif = idcif
-                except Exception as e:
-                    logger.warning("ForceName Representante error con {}: {}", pm.representante.docs.CSF, e)
 
 # ---------------- MAIN ----------------
 def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoExtraction:
@@ -362,9 +339,10 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
     """
     carpeta = acto_nombre or os.path.basename(acto_dir)
 
-    # Routing por roles (tu lógica existente)
-    acto_type, allowed_roles = _detect_acto_type(carpeta)
-    logger.debug("Tipo de acto (routing): {} (roles permitidos: {})", acto_type, ", ".join(sorted(allowed_roles)))
+    # Routing por roles
+    acto_type, actos = _detect_acto_type(carpeta)
+
+    #logger.debug("Tipo de acto (routing): {} (roles permitidos: {})", acto_type, ", ".join(sorted(allowed_roles)))
 
     out = ActoExtraction(acto_nombre=carpeta)
 
@@ -378,10 +356,11 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
         if d in INMUEBLE_DIR_NAMES:
             out.inmuebles.extend(_scan_inmuebles(acto_dir, d))
             continue
-        if d not in KNOWN_ROLES or d not in allowed_roles:
+        #if d not in KNOWN_ROLES or d not in allowed_roles:
+        if d not in KNOWN_ROLES:
             continue
         full = os.path.join(acto_dir, d)
-        pf_found, pm_found = _scan_role_dir(full, d)
+        pf_found, pm_found = _scan_role_dir(full, d, actos)
         out.partes_pf.extend(pf_found)
         out.partes_pm.extend(pm_found)
 
@@ -428,8 +407,7 @@ def scan_acto_folder(acto_dir: str, acto_nombre: Optional[str] = None) -> ActoEx
         # if pm.representante and pm.representante.nombre:
         #     partes_para_match.append({"rol": "REPRESENTANTE", "nombre": pm.representante.nombre})
 
-    # Resolver acto canónico + cliente + escritura (soporta -, –, — y 2do guion)
-    resolver = ActoResolver()
+    # Resolver acto canónico + cliente + escritura
     det = resolver.resolve(folder_name=carpeta, partes=partes_para_match)
 
     out.acto_nombre       = det.get("acto_canonico") or carpeta

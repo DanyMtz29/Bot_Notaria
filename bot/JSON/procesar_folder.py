@@ -123,12 +123,14 @@ class Folder:
                 or self._get(pf_obj, "idcif")
                 or ""
             )
+            acto_perteneciente = self._get(persona, "acto_perteneciente")
             docs = self._get(pf_obj, "docs") or self._get(persona, "docs")
             esposa_o_esposo = self._get(pf_obj, "esposa_o_esposo") or self._get(persona, "esposa_o_esposo")
             if esposa_o_esposo:
                 esposa_o_esposo = {
                     "esposa_o_esposo": True,
                     "rol": rol,
+                    "acto_perteneciente": acto_perteneciente,
                     "nombre": self._get(esposa_o_esposo, "nombre", "").strip(),
                     "rfc": self._get(esposa_o_esposo, "rfc", "").strip(),
                     "idcif": self._get(esposa_o_esposo, "idcif", "").strip(),
@@ -137,7 +139,7 @@ class Folder:
             if not nombre:
                 return None
             return {"tipo": "PF", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": str(idcif).strip(), "docs": docs,
-                    "esposa_o_esposo": esposa_o_esposo}
+                    "acto_perteneciente": acto_perteneciente,"esposa_o_esposo": esposa_o_esposo}
         except Exception:
             return None
 
@@ -151,21 +153,8 @@ class Folder:
             docs = self._get(pm_obj, "docs")
             es_banco = self._get(pm_obj, "es_banco") or False
             carta_instruccion = self._get(pm_obj, "carta_instruccion")
-            # representante = self._get(pm_obj, "representante")
-            # if representante:
-            #     representante = {
-            #         "representante": True,
-            #         "rol": rol,
-            #         "nombre": (self._get(representante, "nombre") or "").strip(),
-            #         "rfc": (self._get(representante, "rfc") or "").strip(),
-            #         "idcif": (
-            #             self._get(representante, "idcif")
-            #             or self._get(representante, "IdCIF")
-            #             or self._get(representante, "IDCIF")
-            #             or ""
-            #         ),
-            #         "docs": self._get(representante, "docs")
-            #     }
+            acto_perteneciente = self._get(pm_obj, "acto_perteneciente")
+            ##Rellenar papeleria de representantes
             representantes = self._get(pm_obj, "representantes")
             if representantes:
                 reps = []
@@ -181,12 +170,13 @@ class Folder:
                             or self._get(rep, "IDCIF")
                             or ""
                         ),
+                        "acto_perteneciente": acto_perteneciente,
                         "docs": self._get(rep, "docs")
                     }
                     reps.append(representante)
             if not nombre:
                 return None
-            return {"tipo": "PM", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": idcif,
+            return {"tipo": "PM", "rol": rol, "nombre": nombre, "rfc": rfc, "idcif": idcif, "acto_perteneciente":acto_perteneciente,
                     "docs": docs, "es_banco": es_banco, "carta_instruccion": carta_instruccion,
                     "representantes": reps}
         except Exception:
@@ -198,7 +188,6 @@ class Folder:
         - pf_list: [{'tipo':'PF','rol':..,'nombre':..,'rfc':..,'idcif':..}, ...]
         - pm_list: [{'tipo':'PM','rol':..,'nombre':..,'rfc':..,'idcif':..}, ...]
         """
-        #pf_list: List[Dict[str, str]] = []
         pf_list = []
         for pf in getattr(extraction, "partes_pf", []) or []:
             d = self._pf_to_dict(pf)
