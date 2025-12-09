@@ -13,6 +13,19 @@ class partesTap(Base):
     """
     # ---------- utils internos ----------
 
+    def click_agregar_acto(self, acto_nombre):
+        acto = acto_nombre.upper().strip()
+
+        #Seleccionar el recuadro del acto correcto
+        xpath = (
+            f"//button[contains(@class,'accordion-button')][contains(., '{acto} - ')]/"
+            f"ancestor::div[contains(@class,'accordion-item')]"
+            f"//button[contains(@class,'btn-primary')]"
+        )
+        #Seleccionar el boton de agregar del acto correspondiente
+        el = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        el.click()
+
     def agregar(self, timeout: int = 20):
         """
         Espera a que el botón 'Agregar' sea clickeable, hace scroll y clic.
@@ -211,6 +224,57 @@ class partesTap(Base):
         filas = self.driver.find_elements(By.XPATH, xp % (repr(nombre_l), repr(rol_l)))
         return len(filas) > 0
 
+
+    def existe_cliente_rol_y_acto(self, acto: str, nombre: str, rol: str) -> bool:
+        """
+        Verifica si dentro del ACTO especificado existe una fila cuyo
+        Nombre y Rol coincidan (case-insensitive, tolerante a acentos).
+        """
+
+        acto_l = acto.strip().upper()
+        nombre_l = nombre.strip().lower()
+        rol_l = rol.strip().lower()
+
+        # 1) Localizar el contenedor del acto
+        xpath_acto_container = (
+            "//button[contains(@class,'accordion-button')]"
+            f"[contains(translate(., 'abcdefghijklmnopqrstuvwxyzáéíóúüñ','ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ'), '{acto_l} - ')]/"
+            "ancestor::div[contains(@class,'accordion-item')]"
+        )
+
+        try:
+            acto_container = self.driver.find_element(By.XPATH, xpath_acto_container)
+        except Exception:
+            return False  # No existe el acto
+
+        # 2) Dentro del ACTO, localizar la tabla PARTES
+        tbody_xpath = ".//div[@role='grid']//tbody[@role='rowgroup']"
+
+        try:
+            tbody = acto_container.find_element(By.XPATH, tbody_xpath)
+        except Exception:
+            return False  # No hay tabla o no hay filas
+
+        # 3) Buscar filas que coincidan con nombre y rol
+        fila_xpath = (
+            ".//tr["
+            "  .//td[@role='gridcell' and @aria-colindex='1']"
+            "     [contains(translate(normalize-space(.),"
+            "       'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+            "       'abcdefghijklmnopqrstuvwxyzáéíóúüñ'"
+            "     ), %s)]"
+            "  and "
+            "  .//td[@role='gridcell' and @aria-colindex='3']"
+            "     [contains(translate(normalize-space(.),"
+            "       'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÜÑ',"
+            "       'abcdefghijklmnopqrstuvwxyzáéíóúüñ'"
+            "     ), %s)]"
+            "]"
+        )
+
+        filas = acto_container.find_elements(By.XPATH, fila_xpath % (repr(nombre_l), repr(rol_l)))
+
+        return len(filas) > 0
 
     def set_porcentaje(self, valor: int | float = 50) -> None:
         """

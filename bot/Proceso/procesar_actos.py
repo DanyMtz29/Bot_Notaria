@@ -83,6 +83,7 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
     cliente_principal = getattr(extraction, "cliente_principal")
     inm_list = getattr(extraction, "inmuebles")
     otros = getattr(extraction, "otros")
+    actos_extra = getattr(extraction, "actos_relacionados")
 
     #Guarda el json
     json_path = actos_folder._ensure_cache_and_write_json(acto, extraction)
@@ -103,15 +104,17 @@ def extraer_datos_proyecto(driver, wait, acto: str, abogado:str, cache_dir: str)
     
     clt.procesar_partes(partes)
 
-    crear_proyecto(driver,wait,cliente_principal,partes, acto_nombre, descripcion, 
-                  inm_list, cache_dir, escritura, abogado, otros)
+    actos_extra.append(acto_nombre)
+
+    crear_proyecto(driver,wait,cliente_principal,partes, descripcion, 
+                  inm_list, cache_dir, escritura, abogado, otros, actos_extra)
     
-def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmuebles, cache_dir, escritura,abogado, otros):
+def crear_proyecto(driver, wait, cliente, partes, descripcion, inmuebles, cache_dir, escritura,abogado, otros, actos_extra):
     """
         CREA EL PROYECTO EN EL PORTAL
     """
     pp = generalTap(driver, wait)
-    pp.create_project(abogado,cliente,("\"PRUEBAS BOTBI\" " + descripcion),acto_nombre)
+    pp.create_project(abogado,cliente,("\"PRUEBAS BOTBI\" " + descripcion), actos_extra)
     partesTAP = partesTap(driver, wait)
 
     roles_repetidos = {}
@@ -160,12 +163,14 @@ def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmu
     for part in partes_involucradas:
         nombre = part.get("nombre", "")
         rol    = part.get("rol", "").upper()
-        print(f"Procesando: {nombre}, rol {rol}")
+        acto   = part.get("acto_perteneciente").upper()
 
-        if partesTAP.existe_cliente_y_rol(nombre,rol):
+        print(f"Procesando: {nombre}, rol {rol}, acto: {acto}")
+
+        if partesTAP.existe_cliente_rol_y_acto(acto, nombre, rol):
             continue
 
-        partesTAP.agregar()
+        partesTAP.click_agregar_acto(acto)
         if part.get("unknown"):
             partesTAP.set_cliente("PUBLICO EN GENERAL")
         else:
@@ -177,7 +182,7 @@ def crear_proyecto(driver, wait, cliente, partes, acto_nombre, descripcion, inmu
         # elif (acto_nombre.lower() in {"compraventa","compraventa con apertura de credito","compraventa infonavit","compraventa fovissste",
         #             } and rol.strip().lower() == "vendedor" and partesTAP.existe_cliente_y_rol("", "vendedor") ):
         #     partesTAP.set_porcentaje((100/roles_repetidos[rol]))
-        if partesTAP.existe_cliente_y_rol("", rol.strip().lower()):
+        if partesTAP.existe_cliente_rol_y_acto(acto, "", rol.strip().lower()):
             try:
                 partesTAP.set_porcentaje((100/roles_repetidos[rol]))
             except Exception:

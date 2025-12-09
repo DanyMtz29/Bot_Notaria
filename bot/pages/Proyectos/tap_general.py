@@ -81,7 +81,7 @@ class generalTap(Base):
             abogado
         ))
 
-    def create_project(self, abogado: str, cliente: str, descripcion: str, acto: str, auto_save: bool = False):
+    def create_project(self, abogado: str, cliente: str, descripcion: str, actos_extra: list, auto_save: bool = False):
         self.open_new_project()
         #Abre el combo abogado y selecciona el abogado
         #self._pick_kendo_opcion(self._abrir_combo_en_fila("Abogado"),abogado)
@@ -91,9 +91,7 @@ class generalTap(Base):
         #Establecer la descripcion
         self.set_descripcion(descripcion)
         #Seleccionar actos correspondientes
-        actos = []#==================PENDIENTE DE QUITAR POR EL PARAMETRO
-        actos.append(acto)
-        self.set_actos(actos)
+        self.set_actos(actos_extra)
         
         logger.info("PESTAÑA 'GENERAL' RELLENADA CORRECTAMENTE")
 

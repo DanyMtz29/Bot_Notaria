@@ -67,6 +67,8 @@ class Documentos(Base):
             Sube solo los docus de los inmuebles
         """
 
+        if not inmuebles: return False
+
         inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
         flag = True
         for inm in inmuebles:
@@ -122,6 +124,7 @@ class Documentos(Base):
         time.sleep(1)
 
     def subir_papeleria_sociedad(self, partes: list, doc: str) -> bool:
+
         doc_original = doc
         if doc == "Acta constitutiva (antecedente)": doc = "ACTA_CONSTITUTIVA"
         elif doc == "Poder del representante legal": doc = "PODER_REPRESENTANTE"
@@ -130,8 +133,10 @@ class Documentos(Base):
         elif doc == "Carta de instrucción vigente": doc = "carta_instruccion"
 
         flag = True
+        hay_pm = False
         for parte in partes:
             if parte.get("tipo") == "PM":
+                hay_pm = True
                 if doc == "ACTA_CONSTITUTIVA":
                     if not parte.get("unknown") and self.checar_docs_importar(parte.get("nombre"), doc_original):
                         time.sleep(1)
@@ -179,10 +184,8 @@ class Documentos(Base):
                     else:
                         self.add_coment(("PM",parte.get("nombre"), parte.get('rol')), doc_original)
                         flag = False
-        return flag
+        return hay_pm and flag
                     
-
-
     def subir_doc_partes_basicas(self,partes: list, doc: str) -> None:
         """
             Sube solo los docus basicos de las partes: CURP, ACTA DE NACIMIENTO, COMP_DOM, CSF, INE
@@ -195,9 +198,8 @@ class Documentos(Base):
         elif doc == "CURP (compareciente o partes)": doc = "CURP"
         elif doc == "Acta de matrimonio (compareciente o partes)": doc = "ACTA_MATRIMONIO"
 
-        inp = self.driver.find_element(By.CSS_SELECTOR, "input#attachment[type='file']")
         flag = True
-
+        
         clientes = []
         for parte in partes:
             if parte.get("tipo") == "PM":
@@ -226,14 +228,6 @@ class Documentos(Base):
                             self.lista_comentarios[tup] = [doc_original]
                     flag = False
                 else:
-                    # inp.send_keys(doc_up)
-                    # self.esperar_subida()
-                    # filas = self.driver.find_elements(By.XPATH,f"//div[@role='grid']//tr[.//*[contains(normalize-space(),'.pdf')]]")
-                    # fila = filas[-1]
-                    # Select(fila.find_element(By.XPATH, ".//td[2]//select")).select_by_visible_text(doc_original)
-                    # Select(fila.find_element(By.XPATH, ".//td[3]//select")).select_by_visible_text(part.get("nombre"))
-                    # self.driver.execute_script("arguments[0].value = '';", inp)
-                    # time.sleep(1)
                     self.subir_doc_select(doc_up, part, doc_original)
         return flag
     
