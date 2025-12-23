@@ -1,17 +1,18 @@
-selenium>=4.24.0
-python-dotenv>=1.0.1
-loguru>=0.7.2
-typer>=0.12.5
+#Para pdfs
+pypdf
+pymupdf 
+rapidocr_onnxruntime
 
-#Para PDFS
-pdfminer.six
-pdfplumber
-pyMuPDF
-pillow
-pytesseract
+#typer
+typer
 
-#GOOGLE API
-google-auth 
+#Selenium
+selenium
+
+#Para escribir en excel
+xlsxwriter
+
+#Google Gmail
+google-api-python-client 
 google-auth-oauthlib 
-google-auth-httplib2 
-google-api-python-client
+google-auth-httplib2

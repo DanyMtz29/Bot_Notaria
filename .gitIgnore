@@ -12,6 +12,7 @@ __pycache__/
 
 #Logs
 logs/
+temp/
 
 #
 /Lib
@@ -21,3 +22,7 @@ logs/
 #Lo que el bot genera:
 bot/_cache_bot/
 .github/
+
+entornoVirtual/
+
+iniciar_bot.bat

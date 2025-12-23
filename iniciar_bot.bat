@@ -1,3 +1,3 @@
 @echo off
-call .venv\scripts\activate
-python -m bot.main --no-headless
+call entornoVirtual\scripts\activate
+python main.py --no-headless
