@@ -138,7 +138,6 @@ class CustomersCifModal:
         if idcif:
             idcif_el.send_keys(idcif)
 
-        print(f"Consultando CIF con RFC='{rfc or '-'}' IdCIF='{idcif or '-'}'")
         self._click_consult(content, timeout=timeout)
 
         # espera resultado + que se haya ido cualquier loader
@@ -180,13 +179,11 @@ class CustomersCifModal:
                     except Exception:
                         # si el click normal falla, intenta click por JS
                         self.driver.execute_script("arguments[0].click();", candidate)
-                    print("Clic en 'Crear Cliente'. Esperando cierre del modal…")
                     break
                 except Exception as e:
                     # si falló el scroll o algo antes, intenta directo el click por JS
                     try:
                         self.driver.execute_script("arguments[0].click();", candidate)
-                        print("Clic vía JS en 'Crear Cliente'. Esperando cierre del modal…")
                         break
                     except Exception as e2:
                         pass

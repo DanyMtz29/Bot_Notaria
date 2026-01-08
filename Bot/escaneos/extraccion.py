@@ -1,12 +1,13 @@
-import os, json, datetime
-from dataclasses import asdict
+#Imports independientes
+import os, datetime
+from typing import List, Tuple
 
-from Bot.config.actos import ALIAS_POR_ACTO
+#Impors mios
+from Bot.helpers.archivos_urgentes import papeleria_importante
 from Bot.config.regexes import *
 from Bot.models.modelos import Inmueble, Persona, Sociedad, DocsOtros, Proyecto
 from Bot.escaneos.escaneo import escanear_partes, escanear_varios_inmuebles, escanear_otros
 from Bot.helpers.carpetas import buscar_acto_por_alias
-from typing import List, Tuple
 
 class ExtraccionCarpeta:
     def __init__(self, path: str):
@@ -92,5 +93,8 @@ class ExtraccionCarpeta:
         #Ver el mejor candidato para el nombre principal
         cliente_principal = max(coincidencias, key=coincidencias.get)
         
+        #Estraer toda la papeleria que se necesita (IMPORTANTE) de los actos y los clientes involucrados
+        proyecto.papeleria_total = papeleria_importante(proyecto)
+
         proyecto.cliente_principal = cliente_principal    
         return proyecto

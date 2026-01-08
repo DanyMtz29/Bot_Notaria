@@ -328,7 +328,6 @@ class ClientsPage:
         try:
             link = self.wait.until(EC.element_to_be_clickable(self._first_row_view_link()))
             self._click_smart(link)
-            print("Click en lupita (primer resultado).")
         except Exception:
             # 2) Fallback: busca cualquier lupa visible en el grid y clica su <a> ancestro
             icons = self.driver.find_elements(By.CSS_SELECTOR, "table.k-table tbody i.fas.fa-search")
@@ -339,7 +338,6 @@ class ClientsPage:
                 try:
                     link = ic.find_element(By.XPATH, "./ancestor::a[1]")
                     self._click_smart(link)
-                    print("Click en lupita (fallback por ícono).")
                     break
                 except Exception:
                     continue
@@ -370,8 +368,6 @@ class ClientsPage:
             link.click()
         except Exception:
             self.driver.execute_script("arguments[0].click();", link)
-        print(f"Click en lupita -> {href}")
 
         # Espera navegación al detalle
         self.wait.until(EC.url_contains("/customers/detail/"))
-        print("Detalle de cliente cargando…")

@@ -35,7 +35,6 @@ class Cliente(Base):
             except Exception:
                 pass
             registrar_log(self.carpeta_logs_acto, f"Procesando cliente '{cl.nombre}'.")
-            print(f"Procesando cliente '{cl.nombre}'.")
             reintentar =  self.procesar_cliente(cl,clientes_nuevos)
             if reintentar: #Significa que se creo manual y se procesa de nuevo
                 self.procesar_cliente(cl, clientes_nuevos)
@@ -54,20 +53,17 @@ class Cliente(Base):
             found = self.CP.search_by_name(cliente.rfc, timeout=12)
             time.sleep(1)
         if (not found) and cliente.nombre:
-            print(f"No encontrado por rfc: {cliente.rfc}")
             found = self.CP.search_by_name(cliente.nombre, timeout=12)
             time.sleep(1)
 
         time.sleep(1)
         if found:
-            print(f"Cliente EXISTE en Singrafos: {cliente.nombre}")
             nombre = self.driver.find_element(By.XPATH, "//div[contains(@class,'k-grid-content')]//table//tr[1]/td[1]")
             cliente.nombre = nombre.text.upper()
             self._descargar_uif_existente(cliente)
             registrar_log(self.carpeta_logs_acto,f"DESCARGADA LISTA UIF DE {cliente.nombre}")
         else:
             registrar_log(self.carpeta_logs_acto,f"INTENTANDO CREAR CLIENTE {cliente.nombre}")
-            print(f"Cliente NO existe, creando por IdCIF... [{cliente.idcif}]")
             if self._crear_cliente_por_idcif(cliente):
                 self._descargar_uif_existente(cliente)
                 registrar_log(self.carpeta_logs_acto,f"CLIENTE {cliente.nombre} CREADO CORRECTAMENTE Y UIF DESCARGADA CORRECTAMENTE")

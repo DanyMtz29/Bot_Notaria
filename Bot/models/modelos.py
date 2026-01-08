@@ -169,6 +169,7 @@ class Proyecto:
     pms: List[Sociedad] = field(default_factory=list)
     inmuebles: List[Inmueble] = field(default_factory=list)
     otros: DocsOtros = field(default_factory=DocsOtros)
+    papeleria_total: List[str] = field(default_factory=list)
 
 @dataclass 
 class ProyectoMod:

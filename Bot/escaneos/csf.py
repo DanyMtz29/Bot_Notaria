@@ -1,3 +1,4 @@
+#imports independientes
 import re
 from pypdf import PdfReader
 import fitz
@@ -25,7 +26,6 @@ class ProcesadorCSF:
                 return self.extraccion_sin_texto(ruta_archivo)
 
         except Exception as e:
-            print(f"Error procesando archivo: {e}")
             return None
 
     def acortar_texto(self, palabra_clave: str, texto:str) -> str:

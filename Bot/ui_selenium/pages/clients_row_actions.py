@@ -74,8 +74,6 @@ class ClientsRowActions:
         except Exception:
             self.driver.execute_script("arguments[0].click();", lupita)
 
-        print("Clic en la lupita de la primera fila. Esperando navegación a detalle…")
-
         # Espera navegación a la URL de detalle
         end = time.time() + timeout
         while time.time() < end:

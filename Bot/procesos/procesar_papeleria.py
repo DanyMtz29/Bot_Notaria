@@ -21,9 +21,10 @@ from selenium.common.exceptions import StaleElementReferenceException, TimeoutEx
 
 
 class Documentos(Base):
-    def __init__(self, driver, wait):
+    def __init__(self, driver, wait, proyecto: Proyecto):
         super().__init__(driver, wait)
         self.lista_comentarios = {}
+        self.proyecto = proyecto
 
     def esperar_subida(self):
         wait = WebDriverWait(self.driver, 15)
@@ -33,7 +34,6 @@ class Documentos(Base):
     def subir_lista_uifs(self, clientes: list, doc: str) -> bool:
         flag = True
         for cl in clientes:
-            print(f"Cliente: {cl.nombre} - UIF: {cl.uif}\n")
             if not cl.uif:
                 tup = ("PF",cl.nombre, cl.ruta_guardado)
                 if tup in self.lista_comentarios:
@@ -62,6 +62,8 @@ class Documentos(Base):
         return flag
 
     def add_coment(self, parte: tuple, doc:str) -> None:
+        if doc not in self.proyecto.papeleria_total:
+            return
         if parte in self.lista_comentarios:
             self.lista_comentarios[parte].append(doc)
         else:
@@ -260,12 +262,11 @@ class Documentos(Base):
         for i in range(attempts):
             try:
                 last = refetch_last_row()
-                try:
-                    print(last.text)
-                except StaleElementReferenceException:
-                    if i == attempts - 1:
-                        raise
-                    continue
+                # try:
+                # except StaleElementReferenceException:
+                #     if i == attempts - 1:
+                #         raise
+                #     continue
 
                 cb = last.find_element(By.XPATH, ".//td[1]//input[@type='checkbox']")
                 wait.until(EC.element_to_be_clickable(cb))
@@ -281,17 +282,16 @@ class Documentos(Base):
         self.driver.execute_script("arguments[0].click();", cerrar)
         return True
 
-    def procesamiento_papeleria(self,documents: list,docs, proyecto: Proyecto, carpeta_logs: str):
+    def procesamiento_papeleria(self,documents: list,docs, carpeta_logs: str):
         
         ya_subio_uifs = False # En algunos actos viene 2 veces la uif, para esto es la variable
         clientes = []
-        clientes.extend(proyecto.pfs)
-        clientes.extend(proyecto.pms)
-        clientes_totales = obtener_clientes_totales(proyecto)
-        clientes_pfs = obtener_solo_clientes_pfs(proyecto)
+        clientes.extend(self.proyecto.pfs)
+        clientes.extend(self.proyecto.pms)
+        clientes_totales = obtener_clientes_totales(self.proyecto)
+        clientes_pfs = obtener_solo_clientes_pfs(self.proyecto)
 
         for doc in documents:
-            print(f"DOC PROCESANDO: {doc}")
             if doc in LISTAS_UIFS:
                 if self.subir_lista_uifs(clientes_totales, doc) and not ya_subio_uifs:
                     docs.set_faltante_by_description(doc, marcar=True)
@@ -300,13 +300,13 @@ class Documentos(Base):
                 if self.subir_doc_partes_basicas(clientes_pfs, doc):
                     docs.set_faltante_by_description(doc, marcar=True)
             elif doc in PAPELERIA_INMUEBLES:
-                if self.subir_doc_inmuebles(proyecto.inmuebles,doc):
+                if self.subir_doc_inmuebles(self.proyecto.inmuebles,doc):
                     docs.set_faltante_by_description(doc, marcar=True)
             elif doc in PAPELERIA_SOCIEDAD_PM:
                 if self.subir_papeleria_sociedad(clientes, doc):
                     docs.set_faltante_by_description(doc, marcar=True)
             elif doc in PAPELERIA_OTROS:
-                documentos_a_Subir = proyecto.otros
+                documentos_a_Subir = self.proyecto.otros
                 doc_up = documentos_a_Subir.obtener_documento(doc)
                 if doc_up:
                     if doc == OTROS:#Porque es una lista
@@ -326,7 +326,7 @@ class Documentos(Base):
 
         #gUARDAR LAS LISTAS FUIS EN LA CARPETA DEL SERVIDOR SI NO VAN EN EL PORTAL
         if not ya_subio_uifs:
-            carpeta_uifs = os.path.join(proyecto.ruta, "LISTAS UIFS")
+            carpeta_uifs = os.path.join(self.proyecto.ruta, "LISTAS UIFS")
             os.makedirs(carpeta_uifs, exist_ok=True)
             for cl in clientes_totales:
                 if not cl.uif:
@@ -339,7 +339,7 @@ class Documentos(Base):
                 shutil.move(cl.uif, carpeta_uifs)
                 registrar_log(carpeta_logs ,f"Guardada UIF de {cl.nombre} en carpeta: {carpeta_uifs}")
 
-    def comentarios_y_guardar_proyecto(self, proyecto: Proyecto, CARPETA_LOGS_ACTO):
+    def comentarios_y_guardar_proyecto(self, CARPETA_LOGS_ACTO):
         comentarios_tab = comentariosTab(self.driver,self.wait)
         time.sleep(2)
         if self.lista_comentarios:
@@ -355,30 +355,35 @@ class Documentos(Base):
                 comentario_subir = "".join(comentarios)
                 comentarios_tab.open_tap_comentarios()
                 comentarios_tab.agregar_comentario(comentario_subir)
-                comentarios_tab.enviar_comentario()
+                comentarios_tab.enviar_comentario(CARPETA_LOGS_ACTO)
                 time.sleep(1)
-        #comentarios_tab.guardar_proyecto()
+        #ACTIVAR PARA GUARDAR EL PROYECTO TODO===================================================================
+        #comentarios_tab.guardar_proyecto(CARPETA_LOGS_ACTO)
+        
         registrar_log(CARPETA_LOGS_ACTO, "INFORMACION DE PESTAÑA 'COMENTARIOS' RELLENADA CORRECTAMENTE", "SUCCESS")
         time.sleep(2)
         
         try:
-            proyecto.folio = comentarios_tab.get_folio("\"PRUEBAS BOTBI\" " + proyecto.descripcion)
+            self.proyecto.folio = comentarios_tab.get_folio("\"PRUEBAS BOTBI\" " + self.proyecto.descripcion)
         except Exception as e:
             registrar_log(CARPETA_LOGS_ACTO, f"NO se pudo capturar el folio en el proyecto: {e}", "ERROR")
             pass
         
-        cache_dir = os.path.join(proyecto.ruta,"_cache_bot")
-        self.guardar_papeleria_JSON(cache_dir, "\"PRUEBAS BOTBI\" " + proyecto.descripcion, proyecto)
+        cache_dir = os.path.join(self.proyecto.ruta,"_cache_bot")
+        #POR QUITAR POR ABOGADOS=============================TODO==========================
+        self.guardar_papeleria_JSON(cache_dir, "\"PRUEBAS BOTBI\" " + self.proyecto.descripcion)
+        #self.guardar_papeleria_JSON(cache_dir,self.proyecto.descripcion)
         registrar_log(CARPETA_LOGS_ACTO, f"DOCUMENTACION DEL ACTO GUARDADA CORRECTAMENTE EN LA CARPETA '_cache_bot': {cache_dir}", "SUCCESS")
 
-    def guardar_papeleria_JSON(self,cache_dir: str, descripcion: str, proyecto: Proyecto):
+    def guardar_papeleria_JSON(self,cache_dir: str, descripcion: str):
         data_ordenada = OrderedDict()
         data_ordenada["Fecha de registro"] = str(datetime.date.today())
-        data_ordenada["Folio"] = proyecto.folio
-        data_ordenada["Escritura"] = proyecto.escritura
+        data_ordenada["Folio"] = self.proyecto.folio
+        data_ordenada["Escritura"] = self.proyecto.escritura
         data_ordenada["Descripcion del proyecto"] = descripcion
-        data_ordenada["Cliente"] = proyecto.cliente_principal
-        data_ordenada["Abogado"] = proyecto.abogado
+        data_ordenada["Cliente"] = self.proyecto.cliente_principal
+        data_ordenada["Abogado"] = self.proyecto.abogado
+        data_ordenada['Papeleria importante'] = self.proyecto.papeleria_total
 
         faltantes = {}
         for k, v in self.lista_comentarios.items():

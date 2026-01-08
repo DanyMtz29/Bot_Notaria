@@ -56,8 +56,6 @@ class Escritura(Base):
             By.XPATH, "//input[@type='file' and @id='deedDocument']"
         )))
         inp.send_keys(ruta_archivo)
-
-        print(f"✔ Archivo cargado correctamente: {ruta_archivo}")
         
     def set_descripcion(self,cliente: str):
         descripcion = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//textarea[@id='description']")))

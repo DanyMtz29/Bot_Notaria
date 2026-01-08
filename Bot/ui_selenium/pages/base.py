@@ -37,11 +37,8 @@ class Base:
     #Abre una url del portal
     def open_url(self, page: str) -> None:
         login_url = self.url + page
-        print(f"URL: {login_url}")
         self.driver.get(login_url)
-        print(f"Abriendo projects: {page}")
         self.wait.until(EC.url_contains(f"/{page}"))
-        print("Login cargado correctamente.")
 
     def wait_for_app_ready(self, timeout: int = 15):
         w = WebDriverWait(self.driver, timeout, poll_frequency=0.2)

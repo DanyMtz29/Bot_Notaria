@@ -117,7 +117,6 @@ def crear_proyecto(driver, wait, proyecto: Proyecto, clientes: list, carpeta_log
         nombre = cl.nombre
         rol = cl.rol.upper()
         acto = cl.acto_perteneciente
-        print(f"Procesando: {nombre}, rol {rol}, acto: {acto}")
 
         if pt.existe_cliente_rol_y_acto(acto, nombre, rol):
             continue
@@ -141,11 +140,11 @@ def crear_proyecto(driver, wait, proyecto: Proyecto, clientes: list, carpeta_log
     docs.open_documents_tap()
     time.sleep(2)
 
-    proceso_docs = Documentos(driver, wait)
-    proceso_docs.procesamiento_papeleria(docs.list_all_required_descriptions(), docs, proyecto, carpeta_logs_acto)
+    proceso_docs = Documentos(driver, wait, proyecto)
+    proceso_docs.procesamiento_papeleria(docs.list_all_required_descriptions(), docs, carpeta_logs_acto)
 
     registrar_log(carpeta_logs_acto, "INFORMACION DE PESTAÑA DE 'DOCUMENTOS' COLOCADA CORRECTAMENTE", "SUCCESS")
-    proceso_docs.comentarios_y_guardar_proyecto(proyecto, carpeta_logs_acto)
+    proceso_docs.comentarios_y_guardar_proyecto(carpeta_logs_acto)
 
 def subir_faltantes_proyecto(driver,wait, proyectoMod: ProyectoMod, carpeta_logs_acto: str) -> bool:
     modify = tapModify(driver, wait)

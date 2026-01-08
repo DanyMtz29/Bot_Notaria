@@ -75,7 +75,7 @@ def proceso_por_abogado(headless: bool) -> None:
         try:
             if os.path.exists(os.path.join(ruta_abogado,"bitacora.json")):
                 ruta_excel = generar_excel(ruta_abogado)
-                enviar_gmail(logs_abogado_raiz,CORREOS[abogado], F"RESUMEN DE PROYECTOS DE HACE {MINIMO_DE_DIAS} DÍAS", 
+                enviar_gmail(logs_abogado_raiz,CORREOS[abogado], F"RESUMEN DE PROYECTOS", 
                             "En el siguiente reporte se adjuntan los documentos faltantes en algunos proyectos","",ruta_excel)
         except Exception as e:
             registrar_log(logs_abogado_raiz, f"Error enviando correo a {abogado}: {e}", "ERROR")

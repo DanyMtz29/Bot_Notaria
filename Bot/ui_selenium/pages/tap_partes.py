@@ -171,7 +171,6 @@ class partesTap(Base):
                 last_err = e
                 continue
 
-        print(f"NO SE PUDO SELECCIONAR EL BOTON Guardar: {last_err}")
         return False
 
     def set_rol(self, rol:str)->None:
@@ -198,9 +197,9 @@ class partesTap(Base):
                 (By.XPATH, "//kendo-dropdownlist//span[contains(@class,'k-input-value-text')]"),
                 rol
             ))
-            #print(f"Rol '{rol}' seleccionado correctamente.")
         except Exception as e:
-            print(f"Error al seleccionar el rol '{rol}': {e}")
+            #print(f"Error al seleccionar el rol '{rol}': {e}")
+            pass
 
     def existe_cliente_y_rol(self, nombre: str, rol: str) -> bool:
         """
@@ -313,4 +312,5 @@ class partesTap(Base):
             # ENTER opcional para confirmar el spinner
             inp.send_keys(Keys.ENTER)
         except Exception as e:
-            print(f"No se pudo establecer el porcentaje: {e}")
+            #print(f"No se pudo establecer el porcentaje: {e}")
+            pass
