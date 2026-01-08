@@ -1,0 +1,6 @@
+name: Bot Notaria Publica 84
+entrypoint: main.py
+python: "3.12"
+requirements: requirements.txt
+needs_chrome: true
+requires_desktop: false
