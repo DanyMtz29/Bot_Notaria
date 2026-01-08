@@ -2,11 +2,11 @@ import os
 
 from Bot.models.modelos import Persona, Inmueble, Sociedad, DocsInmuebles, DocsOtros, DocsSociedad, DocsPersonaFisica
 from Bot.helpers.carpetas import listar_directorios, ignorar_directorios, tiene_docs_sociedad, buscar_archivo_por_criterio, buscar_archivos_por_criterio
-from Bot.config.hints import PM_NAME_HINTS, BANCOS_HINTS
+from Bot.constantes.hints import PM_NAME_HINTS, BANCOS_HINTS
 from typing import List, Tuple
-from Bot.config.regexes import *
+from Bot.constantes.regexes import *
 from Bot.escaneos.csf import ProcesadorCSF
-from Bot.config.actos import ROLES_POR_ACTO
+from Bot.constantes.actos import ROLES_POR_ACTO
 
 def escanear_persona(ruta: str, rol: str, acto: str, carpeta_rol = None) -> Persona:
     p = Persona()

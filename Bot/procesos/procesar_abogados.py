@@ -9,7 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 #Imports mios
 from Bot.ui_selenium.pages.login_page import LoginPage
 from Bot.procesos.procesar_actos import procesar_actos
-from Bot.config.rutas import RUTA_PROYECTOS, RUTA_LOGS, RUTA_TEMPORALES, MINIMO_DE_DIAS, CORREOS
+from Bot.constantes.rutas import RUTA_PROYECTOS, RUTA_LOGS, RUTA_TEMPORALES, MINIMO_DE_DIAS, CORREOS
 from Bot.helpers.logs import tomar_screenshot, registrar_log
 from Bot.helpers.json import generar_excel
 from Bot.helpers.gmail import enviar_gmail

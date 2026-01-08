@@ -3,10 +3,10 @@ import os, re, json
 from typing import List, Optional
 
 #Imports mios
-from Bot.config.regexes import *
-from Bot.config.papeleria import *
+from Bot.constantes.regexes import *
+from Bot.constantes.papeleria import *
 from Bot.models.modelos import Proyecto
-from Bot.config.actos import REGEX_POR_ACTO
+from Bot.constantes.actos import REGEX_POR_ACTO
 
 IGNORED_DIRS = {"Generados_Bot", "_cache_bot", "Listas Uifs"}
 IGNORED_PREFIXES = ("SubActo", "Subacto", "subacto", "Generados_", "~$")

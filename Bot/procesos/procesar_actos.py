@@ -12,7 +12,7 @@ from Bot.ui_selenium.pages.Escrituras import Escritura
 
 #imports mios
 from Bot.helpers.logs import tomar_screenshot, registrar_log
-from Bot.config.rutas import RUTA_LOGS, RUTA_TEMPORALES, ARCHIVO_FALTANTES
+from Bot.constantes.rutas import RUTA_LOGS, RUTA_TEMPORALES, ARCHIVO_FALTANTES
 from Bot.models.modelos import Proyecto, ProyectoMod
 from Bot.escaneos.extraccion import ExtraccionCarpeta
 from Bot.helpers.carpetas import obtener_clientes_totales

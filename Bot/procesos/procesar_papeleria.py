@@ -6,8 +6,8 @@ import time, os, datetime, shutil
 from Bot.ui_selenium.pages.base import Base
 from Bot.ui_selenium.pages.tap_comentarios import comentariosTab
 from Bot.models.modelos import Proyecto
-from Bot.config.papeleria import *
-from Bot.config.rutas import ARCHIVO_FALTANTES
+from Bot.constantes.papeleria import *
+from Bot.constantes.rutas import ARCHIVO_FALTANTES
 from Bot.helpers.carpetas import obtener_clientes_totales, obtener_solo_clientes_pfs
 from Bot.helpers.json import guardar_json
 from Bot.helpers.logs import registrar_log

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple
-from Bot.config.papeleria import *
+from Bot.constantes.papeleria import *
 
 @dataclass
 class DocsPersonaFisica:

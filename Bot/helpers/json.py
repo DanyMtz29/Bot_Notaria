@@ -6,7 +6,7 @@ from datetime import datetime, date
 
 #imports mios
 from Bot.models.modelos import Proyecto
-from Bot.config.rutas import ARCHIVO_FALTANTES, MINIMO_DE_DIAS
+from Bot.constantes.rutas import ARCHIVO_FALTANTES, MINIMO_DE_DIAS
 from Bot.helpers.logs import registrar_log
 from Bot.models.modelos import ProyectoMod
 from Bot.helpers.carpetas import buscar_archivos_faltantes_pf, buscar_archivos_faltantes_pm, buscar_archivos_faltantes_inmueble

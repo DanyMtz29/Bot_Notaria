@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 #Impors mios
 from Bot.helpers.archivos_urgentes import papeleria_importante
-from Bot.config.regexes import *
+from Bot.constantes.regexes import *
 from Bot.models.modelos import Inmueble, Persona, Sociedad, DocsOtros, Proyecto
 from Bot.escaneos.escaneo import escanear_partes, escanear_varios_inmuebles, escanear_otros
 from Bot.helpers.carpetas import buscar_acto_por_alias

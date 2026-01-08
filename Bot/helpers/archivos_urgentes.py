@@ -1,7 +1,7 @@
 #Imports mios
 from Bot.models.modelos import Proyecto
-from Bot.config.actos import PAPALERIA_POR_GRUPO, GRUPO_ACTOS
-from Bot.config.papeleria import LISTA_UIF1, LISTA_UIF2
+from Bot.constantes.actos import PAPALERIA_POR_GRUPO, GRUPO_ACTOS
+from Bot.constantes.papeleria import LISTA_UIF1, LISTA_UIF2
 
 def papeleria_importante(proyecto: Proyecto) -> list:
     papeleria_total = []

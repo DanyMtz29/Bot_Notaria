@@ -14,7 +14,7 @@ from email import encoders
 
 #Imports mios
 from Bot.helpers.logs import registrar_log
-from Bot.config.rutas import RUTA_CREDENCIALES
+from Bot.constantes.rutas import RUTA_CREDENCIALES
 
 # Permisos mínimos necesarios
 SCOPES = ["https://www.googleapis.com/auth/gmail.send"]

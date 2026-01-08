@@ -10,7 +10,7 @@ from selenium.common.exceptions import (TimeoutException,StaleElementReferenceEx
 from selenium.webdriver.remote.webdriver import WebDriver
 
 #Imports mios
-from Bot.config.rutas import RUTA_TEMPORALES
+from Bot.constantes.rutas import RUTA_TEMPORALES
 from Bot.helpers.logs import registrar_log
 
 
